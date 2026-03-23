@@ -8,7 +8,7 @@
 #include "console/prompt.h"
 #include "util/size.h"
 
-#if PLATFORM_ASTERIX || PLATFORM_OBELIX || PLATFORM_GETAFIX
+#if PLATFORM_ASTERIX || PLATFORM_BANGLEJS2 || PLATFORM_OBELIX || PLATFORM_GETAFIX
 static const uint8_t OTP_SERIAL_SLOT_INDICES[] = {
   OTP_SERIAL,
 };

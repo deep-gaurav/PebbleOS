@@ -37,6 +37,20 @@ elif board in ('asterix'):
         name='board',
         source=[
             'boards/board_asterix.c',
+            '../lib/log_buffer.c',
+        ],
+        use=[
+            'fw_includes',
+            'freertos',
+            'drivers',
+        ],
+    )
+elif board in ('banglejs2'):
+    bld.objects(
+        name='board',
+        source=[
+            'boards/board_banglejs2.c',
+            '../lib/log_buffer.c',
         ],
         use=[
             'fw_includes',

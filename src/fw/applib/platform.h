@@ -33,6 +33,8 @@ typedef enum PlatformType {
     #define PBL_PLATFORM_TYPE_CURRENT PlatformTypeEmery
   #elif PLATFORM_ASTERIX
     #define PBL_PLATFORM_TYPE_CURRENT PlatformTypeFlint
+  #elif PLATFORM_BANGLEJS2
+    #define PBL_PLATFORM_TYPE_CURRENT PlatformTypeDiorite
   #elif PLATFORM_GETAFIX
     #define PBL_PLATFORM_TYPE_CURRENT PlatformTypeGabbro
   #else

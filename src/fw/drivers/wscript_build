@@ -73,8 +73,7 @@ elif bld.is_snowy_compatible():
             'driver_watchdog',
         ],
     )
-
-elif bld.is_asterix():
+elif bld.is_asterix() or bld.is_banglejs2():
     bld(
         name='drivers',
         use=[
@@ -104,7 +103,6 @@ elif bld.is_asterix():
             'driver_vibe',
         ],
     )
-
 elif bld.is_obelix():
     bld(
         name='drivers',
@@ -142,7 +140,6 @@ elif bld.is_obelix():
             'driver_audio',
         ],
     )
-
 elif bld.is_getafix():
     bld(
         name='drivers',
@@ -177,21 +174,6 @@ elif bld.is_getafix():
         ],
     )
 ## ----------
-
-if bld.is_obelix():
-    bld.objects(
-        name='driver_audio',
-        source=[
-            'sf32lb52/audio/audec.c',
-            'sf32lb52/audio/audio.c',
-        ],
-        use=[
-            'fw_includes',
-            'pbl_includes',
-            'driver_gpio',
-            'hal_sifli',
-        ],
-    )
 
 if bld.is_asterix():
     bld.objects(
@@ -229,6 +211,17 @@ elif mcu_family in ('STM32F2', 'STM32F4'):
             'fw_includes',
             'pbl_includes',
             'stm32_stdlib',
+        ],
+    )
+elif bld.is_banglejs2():
+    bld.objects(
+        name='driver_ambient_light',
+        source=[
+            'ambient_light_stub.c',
+        ],
+        use=[
+            'fw_includes',
+            'pbl_includes',
         ],
     )
 
@@ -338,6 +331,19 @@ elif bld.is_asterix() or bld.is_obelix() or bld.is_getafix():
             'pbl_includes',
         ],
     )
+elif bld.is_banglejs2():
+    bld.objects(
+        name='driver_battery',
+        source=[
+            'battery/battery_banglejs2.c',
+            'battery/battery_common.c',
+        ],
+        use=[
+            'driver_gpio',
+            'fw_includes',
+            'pbl_includes',
+        ],
+    )
 else:
     bld.objects(
         name='driver_battery',
@@ -406,6 +412,17 @@ if bld.is_obelix() or bld.is_getafix():
         ],
         use=[
             'fw_includes',
+        ],
+    )
+elif bld.is_banglejs2():
+    bld.objects(
+        name='driver_accel',
+        source=[
+            'accel_stub.c',
+        ],
+        use=[
+            'fw_includes',
+            'pbl_includes',
         ],
     )
 
@@ -536,6 +553,17 @@ elif bld.is_obelix() or bld.is_getafix():
             'hal_sifli',
         ],
     )
+elif bld.is_banglejs2():
+    bld.objects(
+        name='driver_display',
+        source=[
+            'display_stub.c',
+        ],
+        use=[
+            'fw_includes',
+            'pbl_includes',
+        ],
+    )
 
 if mcu_family in ('STM32F2', 'STM32F4'):
     bld.objects(
@@ -630,7 +658,7 @@ elif bld.is_snowy_compatible():
             'stm32_stdlib',
         ],
     )
-elif bld.is_asterix():
+elif bld.is_asterix() or bld.is_banglejs2():
     bld.objects(
         name='driver_flash',
         source=[
@@ -911,6 +939,17 @@ if bld.is_asterix() or bld.is_obelix() or bld.is_getafix():
         ],
         use=[
             'driver_i2c',
+            'fw_includes',
+            'pbl_includes',
+        ],
+    )
+elif bld.is_banglejs2():
+    bld.objects(
+        name='driver_mag',
+        source=[
+            'mag_stub.c',
+        ],
+        use=[
             'fw_includes',
             'pbl_includes',
         ],
@@ -1574,6 +1613,17 @@ elif mcu_family in ('STM32F2', 'STM32F4'):
             'driver_periph_config',
             'driver_pwm'
             'freertos',
+            'fw_includes',
+            'pbl_includes',
+        ],
+    )
+elif bld.is_banglejs2():
+    bld.objects(
+        name='driver_vibe',
+        source=[
+            'vibe_stub.c',
+        ],
+        use=[
             'fw_includes',
             'pbl_includes',
         ],

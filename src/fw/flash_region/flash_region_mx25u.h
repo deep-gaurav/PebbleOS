@@ -1,5 +1,18 @@
-/* SPDX-FileCopyrightText: 2024 Google LLC */
-/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #pragma once
 
@@ -16,7 +29,7 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #define FLASH_REGION_DEF(MACRO, arg) \
-  MACRO(FIRMWARE_SLOT_1,          0x100000 /* 1024k */, arg) /*      0x0 - 0x100000 */ \
+  MACRO(FIRMWARE_SCRATCH,         0x100000 /* 1024k */, arg) /*      0x0 - 0x100000 */ \
   MACRO(SYSTEM_RESOURCES_BANK_0,  0x080000 /*  512K */, arg) /* 0x100000 - 0x180000 */ \
   MACRO(SYSTEM_RESOURCES_BANK_1,  0x080000 /*  512K */, arg) /* 0x180000 - 0x200000 */ \
   MACRO(SAFE_FIRMWARE,            0x080000 /*  512k */, arg) /* 0x200000 - 0x280000 */ \
@@ -32,8 +45,12 @@
 // Flash region _BEGIN and _END addresses
 //////////////////////////////////////////////////////////////////////////////
 
-#define FLASH_REGION_FIRMWARE_SLOT_1_BEGIN FLASH_REGION_START_ADDR(FIRMWARE_SLOT_1)
-#define FLASH_REGION_FIRMWARE_SLOT_1_END FLASH_REGION_END_ADDR(FIRMWARE_SLOT_1)
+#define FLASH_REGION_FIRMWARE_SCRATCH_BEGIN FLASH_REGION_START_ADDR(FIRMWARE_SCRATCH)
+#define FLASH_REGION_FIRMWARE_SCRATCH_END FLASH_REGION_END_ADDR(FIRMWARE_SCRATCH)
+
+// Aliases for non-pblboot firmware regions (mx25u uses SCRATCH instead of SLOT_1)
+#define FLASH_REGION_FIRMWARE_SLOT_1_BEGIN FLASH_REGION_FIRMWARE_SCRATCH_BEGIN
+#define FLASH_REGION_FIRMWARE_SLOT_1_END FLASH_REGION_FIRMWARE_SCRATCH_END
 
 #define FLASH_REGION_SYSTEM_RESOURCES_BANK_0_BEGIN FLASH_REGION_START_ADDR(SYSTEM_RESOURCES_BANK_0)
 #define FLASH_REGION_SYSTEM_RESOURCES_BANK_0_END FLASH_REGION_END_ADDR(SYSTEM_RESOURCES_BANK_0)

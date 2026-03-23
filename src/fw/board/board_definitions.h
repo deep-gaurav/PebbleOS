@@ -24,6 +24,8 @@
 #include "boards/board_silk.h"
 #elif BOARD_ASTERIX
 #include "boards/board_asterix.h"
+#elif BOARD_BANGLEJS2
+#include "boards/board_banglejs2.h"
 #elif BOARD_OBELIX_DVT || BOARD_OBELIX_PVT || BOARD_OBELIX_BB2
 #include "boards/board_obelix.h"
 #elif BOARD_GETAFIX_EVT || BOARD_GETAFIX_DVT

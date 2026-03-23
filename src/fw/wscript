@@ -115,7 +115,7 @@ def _generate_memory_layout(bld):
         ldscript_template = bld.path.find_node('stm32f439_snowy_emery_flash_fw.ld.template')
     elif bld.is_snowy_compatible():
         ldscript_template = bld.path.find_node('stm32f439_flash_fw.ld.template')
-    elif bld.is_asterix():
+    elif bld.is_asterix() or bld.is_banglejs2():
         ldscript_template = bld.path.find_node('nrf52840_flash_fw.ld.template')
     elif bld.is_obelix() or bld.is_getafix():
         ldscript_template = bld.path.find_node('sf32lb52_flash_fw.ld.template')
@@ -150,7 +150,7 @@ def _generate_memory_layout(bld):
 
     elif bld.env.MICRO_FAMILY == 'NRF52840':
         # Bootloader
-        offset_size = 32 * 1024
+        offset_size = 0 * 1024
         flash_size = 1024 * 1024
         if bld.is_asterix() and bld.variant == 'prf' and not bld.env.IS_MFG:
             fw_max_size = flash_size // 2
@@ -253,7 +253,7 @@ def _generate_memory_layout(bld):
         app_ram_size_4x = APP_RAM_SIZES['diorite']
         # We have a 256k continuous block of RAM.
         total_ram = (0x20000000, 256 * 1024)
-    elif bld.is_asterix():
+    elif bld.is_asterix() or bld.is_banglejs2():
         app_ram_size_2x = APP_RAM_SIZES['aplite']
         app_ram_size_3x = APP_RAM_SIZES['aplite']
         app_ram_size_4x = APP_RAM_SIZES['flint']
@@ -452,7 +452,7 @@ def _get_mfg_paths(bld):
         return ('mfg/spalding',)
     elif bld.is_silk():
         return ('mfg/silk',)
-    elif bld.is_asterix():
+    elif bld.is_asterix() or bld.is_banglejs2():
         return ('mfg/asterix',)
     elif bld.is_obelix():
         return ('mfg/obelix',)

@@ -89,6 +89,7 @@
 
 #include "debug/debug.h"
 #include "debug/setup.h"
+#include "lib/log_buffer.h"
 
 #define STM32F2_COMPATIBLE
 #define STM32F4_COMPATIBLE
@@ -171,6 +172,7 @@ static void dump_gpio_configuration_state(void) {
 #endif /* DUMP_GPIO_CFG_STATE */
 
 int main(void) {
+  log_write("main: starting\r\n");
   soc_early_init();
 
   gpio_init_all();
@@ -195,6 +197,7 @@ int main(void) {
   enable_fault_handlers();
 
   kernel_heap_init();
+  log_write("main: before mbuf init\r\n");
 
   mbuf_init();
   delay_init();
@@ -203,6 +206,7 @@ int main(void) {
   pulse_early_init();
   print_splash_screen();
 
+  log_write("main: before rtc_init\r\n");
   rtc_init();
 
 #ifdef RECOVERY_FW
@@ -239,6 +243,7 @@ int main(void) {
   periph_config_disable(PWR, RCC_APB1Periph_PWR);
 #endif
 
+  log_write("main: starting task scheduler\r\n");
   vTaskStartScheduler();
   for(;;);
 }

@@ -387,6 +387,9 @@ static void prv_base_layer_update_proc(Layer *layer, GContext *ctx) {
   const int16_t fill_thickness = screen_is_obstructed ? 5 : 13;
 #elif SPALDING_SCREEN_RES || GETAFIX_SCREEN_RES
   const int16_t fill_thickness = (bounds.size.h - grect_inset(bounds, GEdgeInsets(15)).size.h) / 2;
+#else
+  // Default fallback for unknown screens (e.g., banglejs2 176x176)
+  const int16_t fill_thickness = screen_is_obstructed ? 8 : 11;
 #endif
 
 #if PBL_COLOR

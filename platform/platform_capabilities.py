@@ -173,6 +173,17 @@ board_capability_dicts = [
         },
     },
     {
+        "boards": ["banglejs2"],
+        "capabilities": {
+            "HAS_SPRF_V3",
+            "HAS_TIMELINE_PEEK",
+            "HAS_PUTBYTES_PREACKING",
+            "HAS_FLASH_OTP",
+            "HAS_ACCEL_SENSITIVITY",
+            "HAS_ORIENTATION_MANAGER",
+        },
+    },
+    {
         "boards": ["obelix_dvt", "obelix_pvt", "obelix_bb2"],
         "capabilities": {
             "HAS_PMIC",

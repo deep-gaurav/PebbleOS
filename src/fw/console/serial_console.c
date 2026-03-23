@@ -3,6 +3,7 @@
 
 #include "serial_console.h"
 
+#include "lib/log_buffer.h"
 #include "console/dbgserial_input.h"
 #include "console/pulse_protocol_impl.h"
 #include "console_internal.h"
@@ -57,12 +58,7 @@ bool serial_console_is_prompt_enabled(void) {
 }
 
 bool serial_console_is_logging_enabled(void) {
-  if (!s_serial_console_initialized) {
-    return true;
-  }
-
-  return s_serial_console_state == SERIAL_CONSOLE_STATE_LOGGING ||
-         s_serial_console_state == SERIAL_CONSOLE_STATE_PULSE;
+  return true;
 }
 
 void serial_console_enable_prompt(void) {
@@ -70,9 +66,7 @@ void serial_console_enable_prompt(void) {
 }
 
 void serial_console_write_log_message(const char* msg) {
-  while (*msg) {
-    dbgserial_putchar(*(msg++));
-  }
+  log_write(msg);
 }
 
 void serial_console_set_state(SerialConsoleState new_state) {

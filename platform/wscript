@@ -36,6 +36,10 @@ def is_asterix(ctx):
     return ctx.get_board().startswith('asterix')
 
 @conf
+def is_banglejs2(ctx):
+    return ctx.get_board().startswith('banglejs2')
+
+@conf
 def is_obelix(ctx):
     return ctx.get_board().startswith('obelix')
 
@@ -57,6 +61,8 @@ def get_platform_name(ctx):
         return "silk"
     elif is_asterix(ctx):
         return "asterix"
+    elif is_banglejs2(ctx):
+        return "banglejs2"
     elif is_obelix(ctx):
         return "obelix"
     elif is_getafix(ctx):
@@ -99,6 +105,8 @@ def get_qemu_cpu(ctx):
         return 'cortex-m4'
     elif is_asterix(ctx):
         return 'cortex-m4'
+    elif is_banglejs2(ctx):
+        return 'cortex-m4'
     elif is_obelix(ctx):
         return 'cortex-star-mc1'
     elif is_getafix(ctx):
@@ -128,6 +136,8 @@ def has_touch(ctx):
     elif is_silk(ctx):
         return False
     elif is_asterix(ctx):
+        return False
+    elif is_banglejs2(ctx):
         return False
     elif is_obelix(ctx):
         return True
@@ -175,6 +185,9 @@ def add_platform_defines(ctx, env):
     elif ctx.is_asterix():
         bit_depth = 1
         platform = 'ASTERIX'
+    elif ctx.is_banglejs2():
+        bit_depth = 1
+        platform = 'BANGLEJS2'
     elif ctx.is_obelix():
         bit_depth = 8
         platform = 'OBELIX'

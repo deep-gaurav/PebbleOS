@@ -91,6 +91,7 @@ def options(opt):
                              'silk_bb2',
                              'silk_flint', # "silk", but it has the flint apis for the emulator
                              'asterix',
+                             'banglejs2',
                              'obelix_dvt',
                              'obelix_pvt',
                              'obelix_bb2',
@@ -384,7 +385,7 @@ def configure(conf):
             conf.env.OPENOCD_JTAG = 'jtag_ftdi'
         elif conf.options.board in ('silk_bb2', 'silk'):
             conf.env.OPENOCD_JTAG = 'swd_ftdi'
-        elif conf.options.board in ('asterix'):
+        elif conf.options.board in ('asterix', 'banglejs2'):
             conf.env.OPENOCD_JTAG = 'swd_cmsisdap'
         else:
             # default to bb2
@@ -411,7 +412,13 @@ def configure(conf):
     elif conf.is_obelix():
         conf.env.PLATFORM_NAME = 'emery'
         conf.env.MIN_SDK_VERSION = 3
-    elif conf.is_asterix() or conf.options.board == 'silk_flint':
+    elif conf.options.board == 'silk_flint':
+        conf.env.PLATFORM_NAME = 'flint'
+        conf.env.MIN_SDK_VERSION = 2
+    elif conf.is_banglejs2():
+        conf.env.PLATFORM_NAME = 'diorite'
+        conf.env.MIN_SDK_VERSION = 2
+    elif conf.is_asterix():
         conf.env.PLATFORM_NAME = 'flint'
         conf.env.MIN_SDK_VERSION = 2
     elif conf.is_getafix():
@@ -425,7 +432,7 @@ def configure(conf):
 
     if conf.is_snowy_compatible() or conf.is_silk():
         conf.env.MICRO_FAMILY = 'STM32F4'
-    elif conf.is_asterix():
+    elif conf.is_asterix() or conf.is_banglejs2():
         conf.env.MICRO_FAMILY = 'NRF52840'
     elif conf.is_obelix() or conf.is_getafix():
         conf.env.MICRO_FAMILY = 'SF32LB52'
