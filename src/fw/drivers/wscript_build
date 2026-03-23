@@ -557,11 +557,15 @@ elif bld.is_banglejs2():
     bld.objects(
         name='driver_display',
         source=[
-            'display_stub.c',
+            'display/jdi_lpm013m126c/jdi_lpm013m126c_nrf5.c',
         ],
         use=[
+            'driver_gpio',
+            'driver_periph_config',
+            'freertos',
             'fw_includes',
             'pbl_includes',
+            'hal_nordic',
         ],
     )
 

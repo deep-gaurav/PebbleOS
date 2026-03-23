@@ -16,9 +16,9 @@ static const BoardConfig BOARD_CONFIG = {
 
   .backlight_on_percent = 25,
   .backlight_max_duty_cycle_percent = 67,
-  
+
   .dbgserial_int = {
-    .peripheral = NRFX_GPIOTE_INSTANCE(0), 
+    .peripheral = NRFX_GPIOTE_INSTANCE(0),
     .channel = 0,
     .gpio_pin = NRF_GPIO_PIN_MAP(0, 5),
   },
@@ -26,7 +26,9 @@ static const BoardConfig BOARD_CONFIG = {
   .has_mic = true,
   .mic_config = {
     .gain = 40,
-  }
+  },
+
+  .lcd_com = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 6), true },
 };
 
 static const BoardConfigButton BOARD_CONFIG_BUTTON = {
@@ -107,11 +109,10 @@ extern UARTDevice * const DBG_UART;
 
 extern PwmState BACKLIGHT_PWM_STATE;
 static const BoardConfigBacklight BOARD_CONFIG_BACKLIGHT = {
-  .options = ActuatorOptions_Pwm | ActuatorOptions_Ctl,
-  .ctl = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(1, 8), true },
+  .options = ActuatorOptions_Pwm,
   .pwm = {
     .state = &BACKLIGHT_PWM_STATE,
-    .output = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 26), true },
+    .output = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 8), true },
     .peripheral = NRFX_PWM_INSTANCE(0)
   },
 };
@@ -119,21 +120,11 @@ static const BoardConfigBacklight BOARD_CONFIG_BACKLIGHT = {
 static const BoardConfigSharpDisplay BOARD_CONFIG_DISPLAY = {
   .spi = NRFX_SPIM_INSTANCE(3),
 
-  .clk = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 6), true },
-  .mosi = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 8), true },
-  .cs = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(1, 3), true },
+  .clk = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 26), true },
+  .mosi = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 27), true },
+  .cs = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 5), true },
 
-  .on_ctrl = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 4), true },
-
-  .extcomin = {
-    .rtc = NRF_RTC2,
-    .gpiote = NRF_GPIOTE,
-    .gpiote_ch = 6,
-    .psel = NRF_GPIO_PIN_MAP(1, 15),
-    // 120Hz/5% (feeds flip-flop, generating 60Hz/50% signal to EXTCOMIN)
-    .period_us = 1000000 / 120,
-    .pulse_us = (1000000 / 120) / 20,
-  },
+  .on_ctrl = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 7), true },
 };
 
 extern QSPIPort * const QSPI;
