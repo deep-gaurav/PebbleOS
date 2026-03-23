@@ -23,6 +23,8 @@
 
 #include "FreeRTOS.h"
 #include "semphr.h"
+#include "lib/log_buffer.h"
+
 
 #define MAX_ERASE_RETRIES (3)
 
@@ -67,15 +69,22 @@ static status_t prv_try_restart_interrupted_erase(bool is_subsector,
 }
 
 void flash_init(void) {
+  log_write("flash_init: starting\r\n");
   flash_impl_init(false /* coredump_mode */);
+  log_write("flash_init: after flash_impl_init\r\n");
 
   s_flash_lock = mutex_create();
+  log_write("flash_init: after mutex_create\r\n");
   s_erase_semphr = xSemaphoreCreateBinary();
+  log_write("flash_init: after semaphore_create\r\n");
   xSemaphoreGive(s_erase_semphr);
   s_erase_poll_timer = new_timer_create();
+  log_write("flash_init: after timer_create\r\n");
   s_erase_suspend_timer = new_timer_create();
+  log_write("flash_init: after timer_create 2\r\n");
 
   flash_erase_init();
+  log_write("flash_init: done\r\n");
 }
 
 #if UNITTEST

@@ -32,15 +32,15 @@
 static QSPIPortState s_qspi_port_state;
 static QSPIPort QSPI_PORT = {
     .state = &s_qspi_port_state,
-    .clk_freq_hz = 8000000UL,
-    .cs_gpio = NRF_GPIO_PIN_MAP(0, 17),
-    .clk_gpio = NRF_GPIO_PIN_MAP(0, 19),
+    .clk_freq_hz = 32000000UL,
+    .cs_gpio = NRF_GPIO_PIN_MAP(0, 14),
+    .clk_gpio = NRF_GPIO_PIN_MAP(0, 16),
     .data_gpio =
         {
-            NRF_GPIO_PIN_MAP(0, 20),
-            NRF_GPIO_PIN_MAP(0, 21),
-            NRF_GPIO_PIN_MAP(0, 22),
-            NRF_GPIO_PIN_MAP(0, 23),
+            NRF_GPIO_PIN_MAP(0, 15),
+            NRF_GPIO_PIN_MAP(0, 13),
+            NRF_QSPI_PIN_NOT_CONNECTED,
+            NRF_QSPI_PIN_NOT_CONNECTED,
         },
 };
 QSPIPort *const QSPI = &QSPI_PORT;
@@ -49,8 +49,10 @@ static QSPIFlashState s_qspi_flash_state;
 static QSPIFlash QSPI_FLASH_DEVICE = {
     .state = &s_qspi_flash_state,
     .qspi = &QSPI_PORT,
-    .read_mode = QSPI_FLASH_READ_READ4IO,
-    .write_mode = QSPI_FLASH_WRITE_PP4O,
+    .default_fast_read_ddr_enabled = false,
+    .read_mode = QSPI_FLASH_READ_READ2IO,
+    .write_mode = QSPI_FLASH_WRITE_PP2O,
+    .reset_gpio = { GPIO_Port_NULL },
 };
 QSPIFlash *const QSPI_FLASH = &QSPI_FLASH_DEVICE;
 /* PERIPHERAL ID 43 */

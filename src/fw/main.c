@@ -268,35 +268,46 @@ static void register_system_timers(void) {
 
 static void init_drivers(void) {
   board_init();
+  log_write("init_drivers: after board_init\r\n");
 
   // The dbgserial input support requires timer support, so it is initialized here, much later
   // than the core dbgserial_init().
   dbgserial_input_init();
+  log_write("init_drivers: after dbgserial_input_init\r\n");
 
   serial_console_init();
+  log_write("init_drivers: after serial_console_init\r\n");
 
 #ifdef HAS_DRIVER_VOLTAGE_MONITOR
   voltage_monitor_init();
+  log_write("init_drivers: after voltage_monitor_init\r\n");
 #endif
 
   battery_init();
+  log_write("init_drivers: after battery_init\r\n");
   vibe_init();
+  log_write("init_drivers: after vibe_init\r\n");
 
 #if CAPABILITY_HAS_PMIC
   pmic_init();
+  log_write("init_drivers: after pmic_init\r\n");
 #endif // CAPABILITY_HAS_PMIC
 
+  log_write("init_drivers: before flash_init\r\n");
   flash_init();
+  log_write("init_drivers: after flash_init\r\n");
   flash_sleep_when_idle(true);
   flash_enable_write_protection();
   flash_prf_set_protection(true);
 
 #if CAPABILITY_HAS_MICROPHONE
   mic_init(MIC);
+  log_write("init_drivers: after mic_init\r\n");
 #endif
 
 #if CAPABILITY_HAS_TOUCHSCREEN
   touch_sensor_init();
+  log_write("init_drivers: after touch_sensor_init\r\n");
 #if !defined(RECOVERY_FW)
   // Only keep touch enabled on recovery (and so manufacturing as well)
   // Once supported in main firmware, this should be removed.
@@ -305,17 +316,23 @@ static void init_drivers(void) {
 #endif
 
   accel_init();
+  log_write("init_drivers: after accel_init\r\n");
 #if CAPABILITY_HAS_MAGNETOMETER
   mag_init();
+  log_write("init_drivers: after mag_init\r\n");
 #endif
 #if CAPABILITY_HAS_PRESSURE_SENSOR
   pressure_init();
+  log_write("init_drivers: after pressure_init\r\n");
 #endif
 
   backlight_init();
+  log_write("init_drivers: after backlight_init\r\n");
   ambient_light_init();
+  log_write("init_drivers: after ambient_light_init\r\n");
 
   temperature_init();
+  log_write("init_drivers: after temperature_init\r\n");
 
   rtc_init_timers();
   rtc_alarm_init();
@@ -395,37 +412,54 @@ static NOINLINE void prv_main_task_init(void) {
 #endif
 
   pebble_task_configure_idle_task();
+  log_write("prv_main_task_init: after pebble_task_configure_idle_task\r\n");
 
   task_init();
+  log_write("prv_main_task_init: after task_init\r\n");
 
   memory_layout_setup_mpu();
+  log_write("prv_main_task_init: after memory_layout_setup_mpu\r\n");
 
   board_early_init();
+  log_write("prv_main_task_init: after board_early_init\r\n");
 
   boot_splash_start();
+  log_write("prv_main_task_init: after boot_splash_start\r\n");
 
   kernel_applib_init();
+  log_write("prv_main_task_init: after kernel_applib_init\r\n");
 
   system_task_init();
+  log_write("prv_main_task_init: after system_task_init\r\n");
 
   events_init();
+  log_write("prv_main_task_init: after events_init\r\n");
 
   new_timer_service_init();
+  log_write("prv_main_task_init: after new_timer_service_init\r\n");
   regular_timer_init();
+  log_write("prv_main_task_init: after regular_timer_init\r\n");
 
   // Initialize the task watchdog and immediately pause it for 30 seconds to
   // give us time to initialize everything without worrying about task watchdog
   // from firing if we block other tasks.
   task_watchdog_init();
+  log_write("prv_main_task_init: after task_watchdog_init\r\n");
   task_watchdog_pause(30);
+  log_write("prv_main_task_init: after task_watchdog_pause\r\n");
 
   analytics_init();
+  log_write("prv_main_task_init: after analytics_init\r\n");
   register_system_timers();
+  log_write("prv_main_task_init: after register_system_timers\r\n");
   system_task_timer_init();
+  log_write("prv_main_task_init: after system_task_timer_init\r\n");
 
   init_drivers();
+  log_write("prv_main_task_init: after init_drivers\r\n");
 
   clock_init();
+  log_write("prv_main_task_init: after clock_init\r\n");
 
 #if defined(IS_BIGBOARD)
   // Program a random S/N into the Bigboard in case it's not been done yet:
