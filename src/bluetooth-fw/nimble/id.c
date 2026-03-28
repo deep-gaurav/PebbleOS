@@ -5,6 +5,7 @@
 #include <system/passert.h>
 
 #include <host/ble_hs_id.h>
+#include <host/util/util.h>
 #include <services/gap/ble_svc_gap.h>
 
 void bt_driver_id_set_local_device_name(const char device_name[BT_DEVICE_NAME_BUFFER_SIZE]) {
@@ -23,13 +24,31 @@ void bt_driver_id_copy_local_identity_address(BTDeviceAddress *addr_out) {
   PBL_ASSERTN(rc == 0);
 }
 
-void bt_driver_set_local_address(bool allow_cycling, const BTDeviceAddress *pinned_address) {}
+void bt_driver_set_local_address(bool allow_cycling, const BTDeviceAddress *pinned_address) {
+  if (allow_cycling || !pinned_address) {
+    // Bring-up path: revert to NimBLE's default ensured identity address.
+    int rc = ble_hs_util_ensure_addr(0);
+    PBL_ASSERTN(rc == 0);
+    return;
+  }
+
+  // Pebble's "pinned address" is used to stop address rotation while pairable.
+  // For this port, use a stable random address until full privacy / RPA control is wired up.
+  int rc = ble_hs_id_set_rnd(pinned_address->octets);
+  PBL_ASSERTN(rc == 0);
+}
 
 void bt_driver_id_copy_chip_info_string(char *dest, size_t dest_size) {
   strncpy(dest, "NimBLE", dest_size);
 }
 
 bool bt_driver_id_generate_private_resolvable_address(BTDeviceAddress *address_out) {
-  *address_out = (BTDeviceAddress){};
+  ble_addr_t address;
+  int rc = ble_hs_id_gen_rnd(0, &address);
+  if (rc != 0) {
+    return false;
+  }
+
+  memcpy(address_out->octets, address.val, sizeof(address_out->octets));
   return true;
 }
