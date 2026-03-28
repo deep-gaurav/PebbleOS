@@ -103,6 +103,9 @@ void debounced_button_init(void) {
 #endif
 
   for (int i = 0; i < NUM_BUTTONS; ++i) {
+    if (BOARD_CONFIG_BUTTON.buttons[i].gpiote.gpio_pin == GPIO_Pin_NULL) {
+      continue;
+    }
     const ExtiConfig config = BOARD_CONFIG_BUTTON.buttons[i].gpiote;
     exti_configure_pin(config, ExtiTrigger_RisingFalling, prv_button_interrupt_handler);
     exti_enable(config);
@@ -134,6 +137,10 @@ static void prv_timer_handler(nrf_timer_event_t evt, void *ctx) {
 
   // We handle all 4 buttons every time this interrupt is fired.
   for (int i = 0; i < NUM_BUTTONS; ++i) {
+    if (BOARD_CONFIG_BUTTON.buttons[i].gpiote.gpio_pin == GPIO_Pin_NULL) {
+      s_button_timers[i] = 0;
+      continue;
+    }
     // What stable state is the button in, according to the debouncing algorithm?
     bool debounced_button_state = bitset32_get(&s_debounced_button_state, i);
     // What is the current physical state of the button?

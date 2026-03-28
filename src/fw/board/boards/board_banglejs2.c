@@ -14,9 +14,14 @@
 #include "drivers/pmic/npm1300.h"
 #include "drivers/pwm.h"
 #include "drivers/qspi_definitions.h"
+#include "drivers/button_id.h"
+#include "drivers/exti.h"
 #include "drivers/rtc.h"
 #include "flash_region/flash_region.h"
+#include "kernel/events.h"
 #include "kernel/util/sleep.h"
+#include "services/common/system_task.h"
+#include "system/logging.h"
 #include "system/passert.h"
 #include "util/units.h"
 
@@ -218,6 +223,147 @@ const Npm1300Config NPM1300_CONFIG = {
   .thermistor_beta = 3380,
 };
 
+// Touch controller CST816S with software I2C
+#define TOUCH_I2C_TIMEOUT 100000
+#define TOUCH_I2C_ADDR 0x15
+
+static bool s_touch_i2c_started = false;
+
+static void touch_wr_pin(int pin, bool state) {
+  if (state) {
+    nrf_gpio_pin_set(pin);
+    nrf_gpio_cfg_output(pin);
+    nrf_gpio_cfg_input(pin, NRF_GPIO_PIN_PULLUP);
+  } else {
+    nrf_gpio_pin_clear(pin);
+    nrf_gpio_cfg_output(pin);
+  }
+}
+
+static bool touch_rd_pin(int pin) {
+  return nrf_gpio_pin_read(pin);
+}
+
+static void touch_i2c_start(void) {
+  if (s_touch_i2c_started) {
+    touch_wr_pin(TOUCH_PIN_SDA, true);
+    touch_wr_pin(TOUCH_PIN_SCL, true);
+    int timeout = TOUCH_I2C_TIMEOUT;
+    while (!touch_rd_pin(TOUCH_PIN_SCL) && --timeout) {
+    }
+  }
+  touch_wr_pin(TOUCH_PIN_SDA, false);
+  touch_wr_pin(TOUCH_PIN_SCL, false);
+  s_touch_i2c_started = true;
+}
+
+static void touch_i2c_stop(void) {
+  touch_wr_pin(TOUCH_PIN_SDA, false);
+  touch_wr_pin(TOUCH_PIN_SCL, true);
+  int timeout = TOUCH_I2C_TIMEOUT;
+  while (!touch_rd_pin(TOUCH_PIN_SCL) && --timeout) {
+  }
+  touch_wr_pin(TOUCH_PIN_SDA, true);
+  s_touch_i2c_started = false;
+}
+
+static void touch_i2c_wr_bit(bool bit) {
+  touch_wr_pin(TOUCH_PIN_SDA, bit);
+  touch_wr_pin(TOUCH_PIN_SCL, true);
+  int timeout = TOUCH_I2C_TIMEOUT;
+  while (!touch_rd_pin(TOUCH_PIN_SCL) && --timeout) {
+  }
+  touch_wr_pin(TOUCH_PIN_SCL, false);
+  touch_wr_pin(TOUCH_PIN_SDA, true);
+}
+
+static bool touch_i2c_rd_bit(void) {
+  touch_wr_pin(TOUCH_PIN_SDA, true);
+  touch_wr_pin(TOUCH_PIN_SCL, true);
+  int timeout = TOUCH_I2C_TIMEOUT;
+  while (!touch_rd_pin(TOUCH_PIN_SCL) && --timeout) {
+  }
+  bool bit = touch_rd_pin(TOUCH_PIN_SDA);
+  touch_wr_pin(TOUCH_PIN_SCL, false);
+  return bit;
+}
+
+static bool touch_i2c_wr(uint8_t data) {
+  for (int i = 0; i < 8; i++) {
+    touch_i2c_wr_bit(data & 128);
+    data <<= 1;
+  }
+  return !touch_i2c_rd_bit();
+}
+
+static uint8_t touch_i2c_rd(bool nack) {
+  int data = 0;
+  for (int i = 0; i < 8; i++) {
+    data = (data << 1) | (touch_i2c_rd_bit() ? 1 : 0);
+  }
+  touch_i2c_wr_bit(nack);
+  return data;
+}
+
+static void touch_read(uint8_t addr, uint8_t cnt, uint8_t *data) {
+  touch_i2c_start();
+  touch_i2c_wr(TOUCH_I2C_ADDR << 1);
+  touch_i2c_wr(addr);
+  touch_i2c_start();
+  touch_i2c_wr(1 | (TOUCH_I2C_ADDR << 1));
+  for (int i = 0; i < cnt; i++) {
+    data[i] = touch_i2c_rd(i == (cnt - 1));
+  }
+  touch_i2c_stop();
+  touch_wr_pin(TOUCH_PIN_SDA, true);
+  touch_wr_pin(TOUCH_PIN_SCL, true);
+}
+
+static void prv_button_press_short(ButtonId button) {
+  PebbleEvent e = {
+    .type = PEBBLE_BUTTON_DOWN_EVENT,
+    .button.button_id = button,
+  };
+  event_put(&e);
+  e = (PebbleEvent){
+    .type = PEBBLE_BUTTON_UP_EVENT,
+    .button.button_id = button,
+  };
+  event_put(&e);
+}
+
+static void prv_touch_sys_task_callback(void *data) {
+  uint8_t buf[6];
+  touch_read(1, 6, buf);
+  int gesture = buf[0];
+  PBL_LOG_INFO("Touch IRQ: %d %d %d %d %d %d", buf[0], buf[1], buf[2],
+               buf[3], buf[4], buf[5]);
+  static int last_gesture = 0;
+  if (gesture != last_gesture) {
+    last_gesture = gesture;
+    PBL_LOG_INFO("Gesture: %d", gesture);
+    switch (gesture) {
+      case 1:
+        prv_button_press_short(BUTTON_ID_DOWN);
+        break;
+      case 2:
+        prv_button_press_short(BUTTON_ID_UP);
+        break;
+      case 3:
+        prv_button_press_short(BUTTON_ID_BACK);
+        break;
+      case 4:
+        prv_button_press_short(BUTTON_ID_SELECT);
+        break;
+    }
+  }
+  (void)data;
+}
+
+static void touch_interrupt_handler(bool *should_context_switch) {
+  system_task_add_callback_from_isr(prv_touch_sys_task_callback, NULL, should_context_switch);
+}
+
 void board_early_init(void) {
   log_init();
   log_write("board_early_init: log buffer initialized\r\n");
@@ -237,5 +383,34 @@ void board_early_init(void) {
 }
 
 void board_init(void) {
-  // TODO: banglejs2 board init - stub for now
+  nrf_gpio_pin_set(TOUCH_PIN_SDA);
+  nrf_gpio_pin_set(TOUCH_PIN_SCL);
+  nrf_gpio_cfg_output(TOUCH_PIN_SDA);
+  nrf_gpio_cfg_output(TOUCH_PIN_SCL);
+  nrf_gpio_cfg_input(TOUCH_PIN_IRQ, NRF_GPIO_PIN_PULLUP);
+  nrf_gpio_pin_clear(TOUCH_PIN_RST);
+  nrf_gpio_cfg_output(TOUCH_PIN_RST);
+
+  for (volatile int i = 0; i < 48000; i++)
+    ;
+  nrf_gpio_pin_set(TOUCH_PIN_RST);
+  for (volatile int i = 0; i < 480000; i++)
+    ;
+
+  uint8_t chip_id = 0;
+  touch_read(0xA7, 1, &chip_id);
+  PBL_LOG_INFO("Touch chip ID: 0x%02X", chip_id);
+
+  uint8_t fw_ver = 0;
+  touch_read(0xA9, 1, &fw_ver);
+  PBL_LOG_INFO("Touch fw version: 0x%02X", fw_ver);
+
+  uint8_t buf[6] = {0, 0, 0, 0, 0, 0};
+  touch_read(1, 6, buf);
+  PBL_LOG_INFO("Touch init: %d %d %d %d %d %d", buf[0], buf[1], buf[2],
+               buf[3], buf[4], buf[5]);
+
+  exti_configure_pin(BOARD_CONFIG_TOUCH_EXTI, ExtiTrigger_Falling, touch_interrupt_handler);
+  exti_enable(BOARD_CONFIG_TOUCH_EXTI);
+  PBL_LOG_INFO("Touch IRQ enabled");
 }

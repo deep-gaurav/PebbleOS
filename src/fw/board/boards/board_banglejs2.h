@@ -34,13 +34,13 @@ static const BoardConfig BOARD_CONFIG = {
 static const BoardConfigButton BOARD_CONFIG_BUTTON = {
   .buttons = {
     [BUTTON_ID_BACK] =
-        { "Back",   { NRFX_GPIOTE_INSTANCE(0), 2, NRF_GPIO_PIN_MAP(0, 28) }, NRF_GPIO_PIN_PULLUP },
+        { "Back",   { NRFX_GPIOTE_INSTANCE(0), 1, NRF_GPIO_PIN_MAP(0, 17) }, NRF_GPIO_PIN_PULLUP },
     [BUTTON_ID_UP] =
-        { "Up",     { NRFX_GPIOTE_INSTANCE(0), 3, NRF_GPIO_PIN_MAP(0, 29) }, NRF_GPIO_PIN_PULLUP },
+        { "Up",     { NRFX_GPIOTE_INSTANCE(0), 0, GPIO_Pin_NULL }, NRF_GPIO_PIN_PULLUP },
     [BUTTON_ID_SELECT] =
-        { "Select", { NRFX_GPIOTE_INSTANCE(0), 4, NRF_GPIO_PIN_MAP(0, 30) }, NRF_GPIO_PIN_PULLUP },
+        { "Select", { NRFX_GPIOTE_INSTANCE(0), 0, GPIO_Pin_NULL }, NRF_GPIO_PIN_PULLUP },
     [BUTTON_ID_DOWN] =
-        { "Down",   { NRFX_GPIOTE_INSTANCE(0), 5, NRF_GPIO_PIN_MAP(0, 31) }, NRF_GPIO_PIN_PULLUP },
+        { "Down",   { NRFX_GPIOTE_INSTANCE(0), 0, GPIO_Pin_NULL }, NRF_GPIO_PIN_PULLUP },
   },
   .active_high = false,
   .timer = NRFX_TIMER_INSTANCE(1),
@@ -125,6 +125,17 @@ static const BoardConfigSharpDisplay BOARD_CONFIG_DISPLAY = {
   .cs = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 5), true },
 
   .on_ctrl = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 7), true },
+};
+
+#define TOUCH_PIN_RST NRF_GPIO_PIN_MAP(1, 3)
+#define TOUCH_PIN_IRQ NRF_GPIO_PIN_MAP(1, 4)
+#define TOUCH_PIN_SDA NRF_GPIO_PIN_MAP(1, 1)
+#define TOUCH_PIN_SCL NRF_GPIO_PIN_MAP(1, 2)
+
+static const ExtiConfig BOARD_CONFIG_TOUCH_EXTI = {
+  .peripheral = NRFX_GPIOTE_INSTANCE(0),
+  .channel = 2,
+  .gpio_pin = TOUCH_PIN_IRQ,
 };
 
 extern QSPIPort * const QSPI;
