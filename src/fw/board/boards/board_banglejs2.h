@@ -20,7 +20,7 @@ static const BoardConfig BOARD_CONFIG = {
   .dbgserial_int = {
     .peripheral = NRFX_GPIOTE_INSTANCE(0),
     .channel = 0,
-    .gpio_pin = NRF_GPIO_PIN_MAP(0, 5),
+    .gpio_pin = NRF_GPIO_PIN_MAP(1, 10),
   },
 
   .has_mic = true,
@@ -138,5 +138,3 @@ extern I2CSlavePort * const I2C_DA7212;
 extern I2CSlavePort * const I2C_MMC5603NJ;
 extern I2CSlavePort * const I2C_BMP390;
 extern I2CSlavePort * const I2C_LSM6D;
-
-

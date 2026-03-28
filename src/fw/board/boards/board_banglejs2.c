@@ -60,8 +60,8 @@ QSPIFlash *const QSPI_FLASH = &QSPI_FLASH_DEVICE;
 static UARTDeviceState s_dbg_uart_state;
 static UARTDevice DBG_UART_DEVICE = {
     .state = &s_dbg_uart_state,
-    .tx_gpio = NRF_GPIO_PIN_MAP(0, 27),
-    .rx_gpio = NRF_GPIO_PIN_MAP(0, 5),
+    .tx_gpio = NRF_GPIO_PIN_MAP(1, 11),
+    .rx_gpio = NRF_GPIO_PIN_MAP(1, 10),
     .rts_gpio = NRF_UARTE_PSEL_DISCONNECTED,
     .cts_gpio = NRF_UARTE_PSEL_DISCONNECTED,
     .periph = NRFX_UARTE_INSTANCE(0),
