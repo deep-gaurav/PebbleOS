@@ -1,11 +1,13 @@
 /* SPDX-FileCopyrightText: 2024 Google LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 
+#include <inttypes.h>
 #include <stdio.h>
 
 #include "mfg_serials.h"
 
 #include "console/prompt.h"
+#include "drivers/mcu.h"
 #include "util/size.h"
 
 #if PLATFORM_ASTERIX || PLATFORM_BANGLEJS2 || PLATFORM_OBELIX || PLATFORM_GETAFIX
@@ -41,6 +43,26 @@ static const char DUMMY_PCBA_SERIAL[MFG_PCBA_SERIAL_NUMBER_SIZE + 1] = "XXXXXXXX
 
 static void mfg_print_feedback(const MfgSerialsResult result, const uint8_t index, const char *value, const char *name);
 
+#if PLATFORM_BANGLEJS2
+static bool prv_get_banglejs2_fallback_serial(char out[MFG_SERIAL_NUMBER_SIZE + 1]) {
+  uint32_t mcu_serial[2];
+  size_t mcu_serial_size = sizeof(mcu_serial);
+  if (mcu_get_serial(mcu_serial, &mcu_serial_size) != S_SUCCESS || mcu_serial_size != sizeof(mcu_serial)) {
+    return false;
+  }
+
+  // Use the low 48 bits of the FICR device ID as a stable 12-character serial.
+  snprintf(out, MFG_SERIAL_NUMBER_SIZE + 1, "%08"PRIX32"%04X",
+           mcu_serial[0], (unsigned int)(uint16_t)mcu_serial[1]);
+  return true;
+}
+
+static const char *prv_get_banglejs2_hwver(void) {
+  static const char s_hwver[MFG_HW_VERSION_SIZE + 1] = "BANGLEJS2";
+  return s_hwver;
+}
+#endif
+
 const char* mfg_get_serial_number(void) {
   // Trying from "most recent" slot to "least recent":
   for (int i = ARRAY_LENGTH(OTP_SERIAL_SLOT_INDICES) - 1; i >= 0; --i) {
@@ -49,6 +71,18 @@ const char* mfg_get_serial_number(void) {
       return otp_get_slot(index);
     }
   }
+#if PLATFORM_BANGLEJS2
+  static char s_banglejs2_serial[MFG_SERIAL_NUMBER_SIZE + 1];
+  static bool s_banglejs2_serial_initialized;
+  if (!s_banglejs2_serial_initialized) {
+    if (!prv_get_banglejs2_fallback_serial(s_banglejs2_serial)) {
+      strncpy(s_banglejs2_serial, DUMMY_SERIAL, sizeof(s_banglejs2_serial));
+      s_banglejs2_serial[sizeof(s_banglejs2_serial) - 1] = '\0';
+    }
+    s_banglejs2_serial_initialized = true;
+  }
+  return s_banglejs2_serial;
+#endif
   return DUMMY_SERIAL;
 }
 
@@ -60,6 +94,9 @@ const char* mfg_get_hw_version(void) {
       return otp_get_slot(index);
     }
   }
+#if PLATFORM_BANGLEJS2
+  return prv_get_banglejs2_hwver();
+#endif
   return DUMMY_HWVER;
 }
 
@@ -257,4 +294,3 @@ void mfg_write_bigboard_serial_number(void) {
   }
 }
 #endif
-

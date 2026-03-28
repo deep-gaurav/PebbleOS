@@ -10,6 +10,7 @@
 #include <bluetooth/bluetooth_types.h>
 #include <bluetooth/id.h>
 #include <btutil/bt_device.h>
+#include <string.h>
 
 static uint32_t s_pra_cycling_pause_count;
 static BTDeviceAddress s_pinned_addr;
@@ -17,6 +18,15 @@ static bool s_cycling_paused_due_to_dependent_bondings;
 
 static void prv_allow_cycling(bool allow_cycling) {
   bt_driver_set_local_address(allow_cycling, allow_cycling ? NULL : &s_pinned_addr);
+}
+
+static bool prv_is_invalid_pinned_addr(const BTDeviceAddress *addr) {
+  static const BTDeviceAddress s_zero_addr = {};
+  static const BTDeviceAddress s_ff_addr = {
+    .octets = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+  };
+  return (memcmp(addr, &s_zero_addr, sizeof(*addr)) == 0) ||
+         (memcmp(addr, &s_ff_addr, sizeof(*addr)) == 0);
 }
 
 void bt_local_addr_pause_cycling(void) {
@@ -86,8 +96,15 @@ void bt_local_addr_init(void) {
   s_pra_cycling_pause_count = 0;
   s_cycling_paused_due_to_dependent_bondings = false;
 
-  // Load pinned address from settings file or generate one if it hasn't happened before:
-  if (!bt_persistent_storage_get_ble_pinned_address(&s_pinned_addr)) {
+  // Load pinned address from settings file or generate one if it hasn't happened before.
+  // Older bring-up builds persisted an all-zero address; treat that as invalid and repair it.
+  bool have_pinned_addr = bt_persistent_storage_get_ble_pinned_address(&s_pinned_addr);
+  if (have_pinned_addr && prv_is_invalid_pinned_addr(&s_pinned_addr)) {
+    PBL_LOG_WRN("Discarding invalid pinned address: " BT_DEVICE_ADDRESS_FMT,
+                BT_DEVICE_ADDRESS_XPLODE(s_pinned_addr));
+    have_pinned_addr = false;
+  }
+  if (!have_pinned_addr) {
     if (bt_driver_id_generate_private_resolvable_address(&s_pinned_addr)) {
       bt_persistent_storage_set_ble_pinned_address(&s_pinned_addr);
     } else {
