@@ -175,16 +175,16 @@ static void prv_write(QSPIFlash *dev, const void *buf, size_t len, uint32_t addr
   }
 }
 
-static inline void prv_write_enable(QSPIFlash *dev) {
-  QSPIFlashPart *part = dev->state->part;
-
-  prv_cinstr(dev, part->instructions.write_enable);
-}
-
 static inline void prv_read_sr1(QSPIFlash *dev, uint8_t *sr1) {
   QSPIFlashPart *part = dev->state->part;
 
   prv_cinstr_read(dev, part->instructions.rdsr1, sr1, 1U);
+}
+
+static inline void prv_write_enable(QSPIFlash *dev) {
+  QSPIFlashPart *part = dev->state->part;
+
+  prv_cinstr(dev, part->instructions.write_enable);
 }
 
 static inline void prv_read_sr2(QSPIFlash *dev, uint8_t *sr2) {
@@ -783,5 +783,9 @@ status_t qspi_flash_lock_sector(QSPIFlash *dev, uint32_t addr) {
 }
 
 status_t qspi_flash_unlock_all(QSPIFlash *dev) {
+  QSPIFlashPart *part = dev->state->part;
+  PBL_LOG_INFO("qspi_flash_unlock_all: sending 0x%02x", part->instructions.block_unlock_all);
+  prv_write_enable(dev);
+  prv_cinstr(dev, part->instructions.block_unlock_all);
   return S_SUCCESS;
 }

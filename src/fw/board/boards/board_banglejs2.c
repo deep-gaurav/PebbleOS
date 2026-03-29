@@ -44,8 +44,8 @@ static QSPIPort QSPI_PORT = {
         {
             NRF_GPIO_PIN_MAP(0, 15),
             NRF_GPIO_PIN_MAP(0, 13),
-            NRF_QSPI_PIN_NOT_CONNECTED,
-            NRF_QSPI_PIN_NOT_CONNECTED,
+            NRF_GPIO_PIN_MAP(1, 10),
+            NRF_GPIO_PIN_MAP(1, 11),
         },
 };
 QSPIPort *const QSPI = &QSPI_PORT;
@@ -56,7 +56,7 @@ static QSPIFlash QSPI_FLASH_DEVICE = {
     .qspi = &QSPI_PORT,
     .default_fast_read_ddr_enabled = false,
     .read_mode = QSPI_FLASH_READ_READ2IO,
-    .write_mode = QSPI_FLASH_WRITE_PP2O,
+    .write_mode = QSPI_FLASH_WRITE_PP,
     .reset_gpio = { GPIO_Port_NULL },
 };
 QSPIFlash *const QSPI_FLASH = &QSPI_FLASH_DEVICE;

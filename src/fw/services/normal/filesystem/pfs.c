@@ -265,7 +265,7 @@ static void prv_flash_write(const void *buffer, uint32_t size, uint32_t offset) 
     ftl_write(buffer, size, offset);
     prv_invalidate_page_flags_cache(offset, size);
   } else {
-    PBL_LOG_ERR("FS write out of bounds 0x%x", (int)offset);
+    PBL_LOG_ERR("FS write out of bounds 0x%x", (unsigned int)offset);
   }
 }
 
@@ -489,6 +489,7 @@ static status_t locate_flash_file(const char *name, uint16_t *page) {
     }
   }
 
+  PBL_LOG_DBG("locate_flash_file: '%s' not found in %u pages", name, s_pfs_page_count);
   return (E_DOES_NOT_EXIST);
 }
 
@@ -847,6 +848,7 @@ static status_t create_flash_file(File *f) {
   bool use_gc_allocator = (strcmp(f->name, GC_FILE_NAME) == 0);
 
   if ((rv = find_free_page(&start_page, use_gc_allocator, true)) != S_SUCCESS) {
+    PBL_LOG_ERR("create_flash_file: find_free_page failed %ld", (long)rv);
     return (rv);
   }
 
@@ -1744,8 +1746,8 @@ static NOINLINE bool file_found_in_cache(const char *name, uint8_t op_flags, int
       // make sure the header is not corrupted
       PageHeader pg_hdr;
       FileHeader file_hdr;
-      if ((res = read_header(file->start_page, &pg_hdr, &file_hdr)) !=
-          PageAndFileHdrValid) {
+      res = read_header(file->start_page, &pg_hdr, &file_hdr);
+      if (res != PageAndFileHdrValid) {
         mark_fd_free(fd); // file has been corrupted so clear fd
         goto cleanup;
       }
@@ -1785,6 +1787,7 @@ static NOINLINE status_t pfs_open_handle_create_request(int fd, uint8_t file_typ
   }
 
   int res = create_flash_file(file);
+  PBL_LOG_DBG("pfs_open_handle_create_request: create_flash_file returned %d", res);
   return (res);
 }
 
@@ -1812,8 +1815,10 @@ static int file_found_or_added_to_pfs(int fd, const char *name,
 
   uint16_t page = 0;
   int res = locate_flash_file(name, &page);
+  PBL_LOG_DBG("file_found_or_added_to_pfs: locate=%d page=%u", res, page);
 
   if ((res != S_SUCCESS) && (res != E_DOES_NOT_EXIST)) { // unexpected error
+    PBL_LOG_ERR("file_found_or_added_to_pfs: unexpected locate error %d", res);
     goto cleanup;
   }
 
@@ -1838,10 +1843,13 @@ static int file_found_or_added_to_pfs(int fd, const char *name,
   file->start_offset = FILEDATA_LEN + file->namelen;
 
   if (is_tmp || ((res == E_DOES_NOT_EXIST) && ((op_flags & OP_FLAG_WRITE) != 0))) {
+    PBL_LOG_DBG("file_found_or_added_to_pfs: CREATE path is_tmp=%d", is_tmp);
     res = pfs_open_handle_create_request(fd, file_type, start_size);
   } else if ((op_flags & OP_FLAG_READ) != 0) {
+    PBL_LOG_DBG("file_found_or_added_to_pfs: READ path");
     res = pfs_open_handle_read_request(fd, page);
   } else { // unexpected situation
+    PBL_LOG_ERR("file_found_or_added_to_pfs: INTERNAL ERROR");
     res = E_INTERNAL;
   }
 
@@ -1856,7 +1864,6 @@ cleanup:
 
 int pfs_open(const char *name, uint8_t op_flags, uint8_t file_type,
     size_t start_size) {
-
   size_t namelen = (name == NULL) ? 0 : strlen(name);
   if ((namelen < 1) || (namelen > FILE_MAX_NAME_LEN)) {
     return (E_INVALID_ARGUMENT);
@@ -2073,12 +2080,15 @@ status_t pfs_init(bool run_filesystem_check) {
   }
 
   ftl_populate_region_list();
+  PBL_LOG_INFO("pfs_init: ftl done, pages=%u", s_pfs_page_count);
 
   if (run_filesystem_check) {
     if (!pfs_active()) {
       // either we have downgraded or there is no data on the flash
       PBL_LOG_INFO("PFS not active ... formatting");
       pfs_format(true /* write erase headers */);
+    } else {
+      PBL_LOG_INFO("pfs_init: PFS active");
     }
   }
 
