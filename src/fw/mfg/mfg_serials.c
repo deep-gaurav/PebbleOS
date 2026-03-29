@@ -58,7 +58,7 @@ static bool prv_get_banglejs2_fallback_serial(char out[MFG_SERIAL_NUMBER_SIZE + 
 }
 
 static const char *prv_get_banglejs2_hwver(void) {
-  static const char s_hwver[MFG_HW_VERSION_SIZE + 1] = "BANGLEJS2";
+  static const char s_hwver[MFG_HW_VERSION_SIZE + 1] = "banglejs2";
   return s_hwver;
 }
 #endif

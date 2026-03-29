@@ -156,3 +156,16 @@ status_t flash_impl_blank_check_subsector(FlashAddress addr) {
 uint32_t flash_impl_get_typical_sector_erase_duration_ms(void) { return 150; }
 
 uint32_t flash_impl_get_typical_subsector_erase_duration_ms(void) { return 50; }
+
+
+status_t flash_impl_security_register_is_locked(uint32_t address, bool *locked) {
+  return qspi_flash_security_register_is_locked(QSPI_FLASH, address, locked);
+}
+
+status_t flash_impl_read_security_register(uint32_t addr, uint8_t *val) {
+  return qspi_flash_read_security_register(QSPI_FLASH, addr, val);
+}
+
+const FlashSecurityRegisters *flash_impl_security_registers_info(void) {
+  return qspi_flash_security_registers_info(QSPI_FLASH);
+}

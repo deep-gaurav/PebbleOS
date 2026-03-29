@@ -170,6 +170,17 @@ static void prv_notify_host_bonding_changed(const int obj_type,
 
   bonding.is_gateway = true;
 
+  // Pin the local BLE address so the phone can find us after reconnect.
+  // Without this, address cycling makes the watch invisible after disconnect.
+  bonding.should_pin_address = true;
+  if (bt_persistent_storage_get_ble_pinned_address(&bonding.pinned_address)) {
+    PBL_LOG_D_DBG(LOG_DOMAIN_BT, "Bonding: pinning address to "
+                  BT_DEVICE_ADDRESS_FMT,
+                  BT_DEVICE_ADDRESS_XPLODE(bonding.pinned_address));
+  } else {
+    PBL_LOG_D_ERR(LOG_DOMAIN_BT, "Bonding: no pinned address available!");
+  }
+
   // read any existing data of the opposite type and combine with the new data before sending to the
   // host
   switch (obj_type) {
@@ -201,6 +212,13 @@ static void prv_notify_host_bonding_changed(const int obj_type,
   nimble_addr_to_pebble_device(&value_sec->peer_addr, &bonding.pairing_info.identity);
 
   nimble_addr_to_pebble_addr(&value_sec->peer_addr, &addr);
+
+  PBL_LOG_D_DBG(LOG_DOMAIN_BT, "Bonding notify: obj_type=%d is_gateway=%d should_pin=%d "
+                "enc_valid=%d irk_valid=%d flags=0x%02x",
+                obj_type, bonding.is_gateway, bonding.should_pin_address,
+                bonding.pairing_info.is_remote_encryption_info_valid,
+                bonding.pairing_info.is_remote_identity_info_valid,
+                bonding.flags);
 
   if (bonding.pairing_info.is_remote_encryption_info_valid) {
     bt_driver_cb_handle_create_bonding(&bonding, &addr);

@@ -32,6 +32,7 @@ static QSPIFlashPart QSPI_FLASH_PART = {
             .reset_enable = 0x66,
             .reset = 0x99,
             .qspi_id = 0x9F,
+            .block_unlock_all = 0x98,  // GD25Q64 Global Unlock
         },
     .status_bit_masks =
         {
@@ -105,6 +106,7 @@ status_t flash_impl_unprotect(void) {
 
 status_t flash_impl_init(bool coredump_mode) {
   qspi_flash_init(QSPI_FLASH, &QSPI_FLASH_PART, coredump_mode);
+  qspi_flash_unlock_all(QSPI_FLASH);
   qspi_flash_set_lower_power_mode(QSPI_FLASH, false);
   qspi_flash_set_lower_power_mode(QSPI_FLASH, false);
   qspi_flash_set_lower_power_mode(QSPI_FLASH, false);
