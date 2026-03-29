@@ -800,6 +800,7 @@ void app_manager_get_framebuffer_size(GSize *size) {
     case PlatformTypeEmery:
     case PlatformTypeFlint:
     case PlatformTypeGabbro:
+    case PlatformTypeBangleJS2:
       *size = GSize(DISP_COLS, DISP_ROWS);
       return;
   }

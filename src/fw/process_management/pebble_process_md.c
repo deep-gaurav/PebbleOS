@@ -236,7 +236,8 @@ PlatformType process_metadata_get_app_sdk_platform(const PebbleProcessMd *md) {
          /* diorite */ PlatformTypeAplite, // there's was no Diorite SDK prior to 4.0
          /* emery */   PlatformTypeBasalt,
          /* flint */   PlatformTypeAplite,
-         /* gabbro */  PlatformTypeChalk);
+         /* gabbro */  PlatformTypeChalk,
+         /* banglejs2 */  PlatformTypeAplite);
   }
   // 4.0 <= SDK < 4.2
   if (version_compare(app_sdk_version, first_4_2_version) < 0) {
@@ -247,7 +248,8 @@ PlatformType process_metadata_get_app_sdk_platform(const PebbleProcessMd *md) {
         /* diorite */ PlatformTypeDiorite, // there's was no Aplite SDK after 4.0
         /* emery */   PlatformTypeBasalt,
         /* flint */   PlatformTypeDiorite,
-        /* gabbro */  PlatformTypeChalk);
+        /* gabbro */  PlatformTypeChalk,
+        /* banglejs2 */  PlatformTypeDiorite);
   }
 
   // 4.2 <= SDK --> the flags should be filled correctly.

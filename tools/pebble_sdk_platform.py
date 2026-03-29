@@ -207,6 +207,27 @@ gabbro_platform = {
     "TAGS": ["gabbro", "color", "round", "mic", "health", "compass", "260w", "260h"],
 }
 
+banglejs2_platform = {
+    "NAME": "banglejs2",
+    "MAX_APP_BINARY_SIZE": 0x10000,  # 64K
+    "MAX_APP_MEMORY_SIZE": 0x10000,  # 64K
+    "MAX_WORKER_MEMORY_SIZE": 0x2800,  # 10K
+    "MAX_RESOURCES_SIZE_APPSTORE": 0x40000,  # 256K
+    "MAX_RESOURCES_SIZE": 0x100000,  # 1024K
+    "DEFINES": [
+        "PBL_PLATFORM_BANGLEJS2",
+        "PBL_BW",
+        "PBL_RECT",
+        "PBL_DISPLAY_WIDTH=176",
+        "PBL_DISPLAY_HEIGHT=176",
+    ],
+    "BUILD_DIR": "banglejs2",
+    "BUNDLE_BIN_DIR": "banglejs2",
+    "ADDITIONAL_TEXT_LINES_FOR_PEBBLE_H": [],
+    "MAX_FONT_GLYPH_SIZE": 256,
+    "TAGS": ["banglejs2", "bw", "rect", "176w", "176h"],
+}
+
 pebble_platforms = {
     "flint": flint_platform,
     "emery": emery_platform,
@@ -215,6 +236,7 @@ pebble_platforms = {
     "basalt": basalt_platform,
     "aplite": aplite_platform,
     "gabbro": gabbro_platform,
+    "banglejs2": banglejs2_platform,
 }
 
 
