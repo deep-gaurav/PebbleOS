@@ -36,6 +36,12 @@ static const unsigned int DISP_MODE_STATIC = 0x00;
 static const unsigned int DISP_MODE_WRITE = 0b10001000; // 1 bit data mode
 static const unsigned int DISP_MODE_CLEAR = 0x20;
 
+// 3-bit color mode constants
+// 3-bit mode header (6 bits sent MSB first): M0=1, M1=toggle, M2=0, M3=0, M4=0, M5=0
+// 1-bit mode is 0x88 (M0=1, M1=0, M2=0, M3=0, M4=1).
+// So for 3-bit: M0=1, M4=0 gives 0b10000000 = 0x80 base, plus M1 in bit 6.
+static const unsigned int DISP_MODE_3BIT_BASE = 0x80; // M1=0, M2-M4=0
+
 // We want the SPI clock to run at 2MHz by default
 static uint32_t s_spi_clock_hz;
 
@@ -46,7 +52,12 @@ static volatile int s_spidma_immediate = 0;
 
 // DMA state
 static DisplayContext s_display_context;
-static uint8_t s_dma_line_buffer[DISP_DMA_BUFFER_SIZE_BYTES];
+// DMA buffer: 1-bit needs 26B (22 data + 4 header+dummy), 3-bit needs 88B (66 data + 4 header + 16 dummy)
+// Use the larger size always
+static uint8_t s_dma_line_buffer[96];
+
+// Frame counter for 3-bit M1 COM inversion toggling (toggle every other frame)
+static uint32_t s_3bit_frame_count;
 
 static SemaphoreHandle_t s_dma_update_in_progress_semaphore;
 
@@ -174,6 +185,55 @@ static void prv_display_context_init(DisplayContext* context) {
   context->state = DISPLAY_STATE_IDLE;
   context->get_next_row = NULL;
   context->complete = NULL;
+}
+
+//! Convert a row of 8-bit GColor8 pixels to 3-bit packed format for the JDI display.
+//! Input: 176 bytes (GColor8, 2 bits per R/G/B/A)
+//! Output: 66 bytes packed as RGB triplets (R=MSB, B=LSB per pixel)
+static void prv_convert_row_to_3bit(const uint8_t *src, uint8_t *dst);
+
+//! Diagnostic: Convert GColor8 to 1-bit using red channel MSB.
+//! Uses the WORKING 1-bit display protocol to test if GColor8 parsing is correct.
+//! Input: 176 bytes (GColor8)
+//! Output: 22 bytes (1-bit, 8 pixels per byte, bit 0 = leftmost pixel)
+//! Note: reverse_byte() is applied separately (like the 1-bit path)
+static void prv_convert_row_to_1bit_from_8bit(const uint8_t *src, uint8_t *dst) {
+  // 176 pixels / 8 = 22 bytes
+  for (uint16_t i = 0; i < DISP_LINE_BYTES; i++) {
+    uint8_t byte = 0;
+    // Pack 8 GColor8 pixels into 8 bits (using red channel MSB)
+    for (uint8_t j = 0; j < 8; j++) {
+      uint8_t color = src[i * 8 + j];
+      // GColor8: AA_RR_GG_BB, red is bits 5-4, MSB is bit 5
+      uint8_t bit = (color >> 5) & 1;
+      // Put pixel j's bit into bit j of the output byte
+      // (no reversal here - reverse_byte() is called in the 1-bit path)
+      byte |= (bit << j);
+    }
+    dst[i] = byte;
+  }
+}
+
+static void prv_convert_row_to_3bit(const uint8_t *src, uint8_t *dst) {
+  // Clear output (important since we OR bits)
+  memset(dst, 0, DISP_LINE_BYTES_3BIT);
+
+  for (uint16_t i = 0; i < DISP_COLS; i++) {
+    uint8_t color = src[i];
+    // GColor8 format: AA_RR_GG_BB (bits 7-6=A, 5-4=R, 3-2=G, 1-0=B)
+    // 3-bit mode: 1 bit per channel, 0 = off, 1 = on
+    uint8_t r = (color >> 5) & 1; // R occupies bits 5-4, MSB is bit 5
+    uint8_t g = (color >> 3) & 1; // G occupies bits 3-2, MSB is bit 3
+    uint8_t b = (color >> 1) & 1; // B occupies bits 1-0, MSB is bit 1
+
+    // Pack into output: pixel i occupies bits 7-5 of byte (3*i/8), 3*i%8, 3*i%8-1
+    uint16_t byte_index = (3 * i) / 8;
+    uint8_t bit_base = 7 - ((3 * i) % 8);
+
+    dst[byte_index] |= (r << bit_base);
+    dst[byte_index] |= (g << (bit_base - 1));
+    dst[byte_index] |= (b << (bit_base - 2));
+  }
 }
 
 static void prv_display_write_async(const uint8_t *buf, size_t len) {
@@ -331,6 +391,72 @@ static bool prv_do_dma_update(void) {
   PBL_ASSERTN(s_display_context.get_next_row != NULL);
   bool is_end_of_buffer = !s_display_context.get_next_row(&r);
 
+#if PBL_COLOR
+  // Diagnostic: 8-bit GColor8 -> 1-bit conversion using working 1-bit display protocol
+  // This tests if the GColor8 parsing and row addressing works correctly
+  switch (s_display_context.state) {
+  case DISPLAY_STATE_IDLE:
+  {
+    if (is_end_of_buffer) {
+      return false;
+    }
+
+    prv_enable_chip_select();
+    s_display_context.state = DISPLAY_STATE_WRITING;
+
+    // Convert 8-bit GColor8 to 1-bit (using red channel MSB as the B/W value)
+    uint8_t converted_data[DISP_LINE_BYTES];
+    prv_convert_row_to_1bit_from_8bit(r.data, converted_data);
+
+    // Apply reverse_byte() to each byte (same as 1-bit path does)
+    for (int i = 0; i < DISP_LINE_BYTES; i++) {
+      s_dma_line_buffer[2 + i] = reverse_byte(converted_data[i]);
+    }
+
+    // Use 1-bit mode header but with direct row address (no inversion like 1-bit path)
+    // The 8-bit framebuffer has rows in opposite orientation vs 1-bit
+    s_dma_line_buffer[0] = DISP_MODE_WRITE;
+    s_dma_line_buffer[1] = r.address + 1; // Direct mapping for 8-bit framebuffer
+
+    prv_display_write_async(s_dma_line_buffer, DISP_LINE_BYTES + 2);
+
+    break;
+  }
+  case DISPLAY_STATE_WRITING:
+  {
+    if (is_end_of_buffer) {
+      s_display_context.complete();
+
+      signed portBASE_TYPE was_higher_priority_task_woken = pdFALSE;
+      xSemaphoreGiveFromISR(s_dma_update_in_progress_semaphore, &was_higher_priority_task_woken);
+
+      return was_higher_priority_task_woken != pdFALSE;
+    }
+
+    // Convert 8-bit GColor8 to 1-bit and apply reverse_byte
+    uint8_t converted_data[DISP_LINE_BYTES];
+    prv_convert_row_to_1bit_from_8bit(r.data, converted_data);
+    for (int i = 0; i < DISP_LINE_BYTES; i++) {
+      s_dma_line_buffer[2 + i] = reverse_byte(converted_data[i]);
+    }
+
+    s_dma_line_buffer[0] = DISP_MODE_WRITE;
+    s_dma_line_buffer[1] = r.address + 1; // Direct mapping for 8-bit framebuffer
+
+    bool lastLine = r.address == (DISP_ROWS - 1);
+    if (lastLine) {
+      s_dma_line_buffer[DISP_LINE_BYTES + 2] = 0;
+      s_dma_line_buffer[DISP_LINE_BYTES + 3] = 0;
+    }
+    prv_display_write_async(s_dma_line_buffer, DISP_LINE_BYTES + (lastLine ? 4 : 2));
+    break;
+  }
+  default:
+    WTF;
+  }
+
+#else
+  // 1-bit BW path (original code)
   switch (s_display_context.state) {
   case DISPLAY_STATE_IDLE:
   {
@@ -385,6 +511,7 @@ static bool prv_do_dma_update(void) {
   default:
     WTF;
   }
+#endif // PBL_COLOR
   return false;
 }
 

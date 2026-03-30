@@ -253,7 +253,17 @@ def _generate_memory_layout(bld):
         app_ram_size_4x = APP_RAM_SIZES['diorite']
         # We have a 256k continuous block of RAM.
         total_ram = (0x20000000, 256 * 1024)
-    elif bld.is_asterix() or bld.is_banglejs2():
+    elif bld.is_banglejs2():
+        # 80KB total (MPU-aligned: 10 x 8KB subregions).
+        # app_segment = 28KB (slightly larger than aplite, for native C apps).
+        # runtime_reserved = 53248 fits sizeof(AppState) with 8-bit color FB (~41.6KB).
+        banglejs2_ram = AppRamSize(28672, 53248)
+        app_ram_size_2x = banglejs2_ram
+        app_ram_size_3x = banglejs2_ram
+        app_ram_size_4x = banglejs2_ram
+        retained_size = 256
+        total_ram = (0x20000000 + retained_size, 256 * 1024 - retained_size)
+    elif bld.is_asterix():
         app_ram_size_2x = APP_RAM_SIZES['aplite']
         app_ram_size_3x = APP_RAM_SIZES['aplite']
         app_ram_size_4x = APP_RAM_SIZES['flint']
@@ -654,6 +664,9 @@ def _build_normal(bld):
         else:
             excludes.append('apps/watch/tictoc/bw')
             excludes.append('apps/watch/tictoc/spalding')
+
+    if bld.is_banglejs2():
+        excludes.append('apps/watch/kickstart')
 
     source_dirs.extend(_get_mfg_paths(bld))
     source_dirs.extend(_get_dbg_paths(bld))

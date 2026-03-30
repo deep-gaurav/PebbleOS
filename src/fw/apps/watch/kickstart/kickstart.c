@@ -26,6 +26,7 @@
 #define SNOWY_SCREEN_RES (PBL_DISPLAY_WIDTH == 144 && PBL_DISPLAY_HEIGHT == 168)
 #define SPALDING_SCREEN_RES (PBL_DISPLAY_WIDTH == 180 && PBL_DISPLAY_HEIGHT == 180)
 #define GETAFIX_SCREEN_RES (PBL_DISPLAY_WIDTH == 260 && PBL_DISPLAY_HEIGHT == 260)
+#define BANGLEJS2_SCREEN_RES (PBL_DISPLAY_WIDTH == 176 && PBL_DISPLAY_HEIGHT == 176)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // UI Utils
@@ -283,7 +284,7 @@ static void prv_draw_steps_and_shoe(GContext *ctx, const char *steps_buffer, GFo
 #elif SNOWY_SCREEN_RES
   const GTextAlignment alignment = screen_is_obstructed ? GTextAlignmentRight: GTextAlignmentCenter;
   bounds.origin.y += screen_is_obstructed ? 65 : 108; // steps text top offset
-#elif SPALDING_SCREEN_RES || GETAFIX_SCREEN_RES
+#elif SPALDING_SCREEN_RES || GETAFIX_SCREEN_RES || BANGLEJS2_SCREEN_RES
   const GTextAlignment alignment = GTextAlignmentCenter;
   bounds.origin.y += 113; // steps text top offset
 #endif
@@ -557,7 +558,7 @@ T_STATIC void prv_window_load_handler(Window *window) {
   data->steps_font = fonts_get_system_font(FONT_KEY_AGENCY_FB_46_NUMBERS_AM_PM);
   data->time_font = fonts_get_system_font(FONT_KEY_AGENCY_FB_88_NUMBERS_AM_PM);
   data->am_pm_font = fonts_get_system_font(FONT_KEY_AGENCY_FB_88_THIN_NUMBERS_AM_PM);
-#elif SNOWY_SCREEN_RES || SPALDING_SCREEN_RES
+#elif SNOWY_SCREEN_RES || SPALDING_SCREEN_RES || BANGLEJS2_SCREEN_RES
 #if PBL_RECT
   gbitmap_init_with_resource(&data->shoe_blue_small, RESOURCE_ID_STRIDE_SHOE_BLUE_SMALL);
   gbitmap_init_with_resource(&data->shoe_green_small, RESOURCE_ID_STRIDE_SHOE_GREEN_SMALL);

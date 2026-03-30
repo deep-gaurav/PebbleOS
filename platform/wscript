@@ -186,7 +186,7 @@ def add_platform_defines(ctx, env):
         bit_depth = 1
         platform = 'ASTERIX'
     elif ctx.is_banglejs2():
-        bit_depth = 1
+        bit_depth = 8
         platform = 'BANGLEJS2'
     elif ctx.is_obelix():
         bit_depth = 8
