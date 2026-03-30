@@ -21,10 +21,9 @@
 #define DISP_LINE_BYTES (DISP_COLS / 8)
 #define DISP_LINE_WORDS (((DISP_COLS - 1) / 32) + 1)
 
-// 3-bit (8-color) mode: 176 pixels * 3 bits = 528 bits = 66 bytes per row
-#define DISP_LINE_BYTES_3BIT ((DISP_COLS * 3 + 7) / 8)
-// DMA buffer for 3-bit: 2 header bytes + 66 data bytes + 2 dummy bytes minimum
-#define DISP_3BIT_DMA_BUFFER_SIZE_BYTES (DISP_LINE_BYTES_3BIT + 4)
+// 4-bit (8-color) mode: each pixel as 4 bits: R_G_B_x (MSB=bit 3= R, bit 2=G, bit 1=B, bit 0=unused)
+#define DISP_LINE_BYTES_4BIT (DISP_COLS / 2)  // 88 bytes per row
+#define DISP_4BIT_DMA_BUFFER_SIZE_BYTES (DISP_LINE_BYTES_4BIT + 4)  // 2 header + 88 data + 2 dummy
 
 // Bytes_per_line + 2 byte for cmd+ line address + 2 optional byte for a write command
 #define DISP_DMA_BUFFER_SIZE_BYTES (DISP_LINE_BYTES + 4)
