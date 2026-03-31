@@ -80,7 +80,7 @@ static const VoltagePoint charge_curve[] = {
 };
 
 // TODO(ASTERIX,OBELIX): Needs customization for Asterix/Obelix
-#elif PLATFORM_SILK || PLATFORM_ASTERIX || PLATFORM_BANGLEJS2 || PLATFORM_OBELIX
+#elif PLATFORM_SILK || PLATFORM_ASTERIX || PLATFORM_OBELIX
 // When the voltage drops below these (mV), the watch will start heading for standby (after delay)
 #define BATTERY_CRITICAL_VOLTAGE_CHARGING 3550
 #define BATTERY_CRITICAL_VOLTAGE_DISCHARGING 3300
@@ -115,6 +115,25 @@ static const VoltagePoint charge_curve[] = {
   {80,  4095},
   {90,  4175},
   {100, 4260}
+};
+
+#elif PLATFORM_BANGLEJS2
+// Battery curve for Bangle.js 2, matching Espruino's approach
+// Key thresholds: 3.30V=0%, 3.70V=10%, 3.95V=80%, 4.20V=100%
+#define BATTERY_CRITICAL_VOLTAGE_CHARGING 3550
+#define BATTERY_CRITICAL_VOLTAGE_DISCHARGING 3300
+static VoltagePoint discharge_curve[] = {
+  {0,   BATTERY_CRITICAL_VOLTAGE_DISCHARGING},
+  {10,  3700},
+  {80,  3950},
+  {100, 4200}
+};
+
+static const VoltagePoint charge_curve[] = {
+  {0,   BATTERY_CRITICAL_VOLTAGE_CHARGING},
+  {10,  3700},
+  {80,  3950},
+  {100, 4200}
 };
 
 #else

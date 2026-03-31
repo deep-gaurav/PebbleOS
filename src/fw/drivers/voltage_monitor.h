@@ -21,9 +21,10 @@
 # include <hal/nrf_saadc.h>
 
 typedef const struct VoltageMonitorDevice {
-  NRF_SAADC_Type *const adc; ///< One of ADCX. For example ADC1.
-  const uint8_t adc_channel; ///< One of ADC_Channel_*
-  const nrf_saadc_input_t input;
+  NRF_SAADC_Type *const adc; ///< SAADC peripheral (NRF_SAADC)
+  const uint8_t adc_channel; ///< SAADC channel (unused on nRF52840)
+  const nrf_saadc_input_t input; ///< SAADC input (e.g., NRF_SAADC_INPUT_AIN1)
+  const uint32_t gpio_pin; ///< GPIO pin number for the analog input
 } VoltageMonitorDevice;
 
 #elif defined(MICRO_FAMILY_SF32LB52)

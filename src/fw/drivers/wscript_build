@@ -340,6 +340,7 @@ elif bld.is_banglejs2():
         ],
         use=[
             'driver_gpio',
+            'driver_voltage_monitor',
             'fw_includes',
             'pbl_includes',
         ],
@@ -1325,6 +1326,19 @@ elif mcu_family in ('STM32F2', 'STM32F4'):
             'pbl_includes',
             'stm32_stdlib',
         ]
+    )
+elif mcu_family == 'NRF52840':
+    bld.env.DEFINES.append('HAS_DRIVER_VOLTAGE_MONITOR')
+    bld.objects(
+        name='driver_voltage_monitor',
+        source=[
+            'nrf5/voltage_monitor_nrf5.c',
+        ],
+        use=[
+            'fw_includes',
+            'pbl_includes',
+            'hal_nordic',
+        ],
     )
 
 

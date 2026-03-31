@@ -149,3 +149,8 @@ extern I2CSlavePort * const I2C_DA7212;
 extern I2CSlavePort * const I2C_MMC5603NJ;
 extern I2CSlavePort * const I2C_BMP390;
 extern I2CSlavePort * const I2C_LSM6D;
+
+//! Battery voltage pin is P0.03 (AIN1) which is D3 on Bangle.js v2
+#define BATTERY_VOLTAGE_PIN NRF_GPIO_PIN_MAP(0, 3)
+//! Charging detect pin is P0.23 which is D23 on Bangle.js v2 (active low)
+#define CHARGE_DETECT_PIN NRF_GPIO_PIN_MAP(0, 23)
