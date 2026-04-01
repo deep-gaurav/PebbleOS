@@ -1655,9 +1655,12 @@ elif bld.is_banglejs2():
     bld.objects(
         name='driver_vibe',
         source=[
-            'vibe_stub.c',
+            'vibe/vibe_banglejs2.c',
         ],
         use=[
+            'driver_gpio',
+            'driver_periph_config',
+            'driver_pwm',
             'fw_includes',
             'pbl_includes',
         ],

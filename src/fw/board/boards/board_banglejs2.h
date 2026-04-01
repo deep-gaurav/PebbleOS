@@ -55,8 +55,16 @@ static const BoardConfigPower BOARD_CONFIG_POWER = {
   .battery_capacity_hours = 400,
 };
 
+extern PwmState VIBE_PWM_STATE;
+
 static const BoardConfigActuator BOARD_CONFIG_VIBE = {
+  .options = ActuatorOptions_Pwm | ActuatorOptions_Ctl,
   .ctl = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 2), true }, // LRA_EN
+  .pwm = {
+    .state = &VIBE_PWM_STATE,
+    .output = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 19), true }, // D19 = VIBRATE_PIN
+    .peripheral = NRFX_PWM_INSTANCE(1)
+  },
   .vsys_scale = 3300,
 };
 

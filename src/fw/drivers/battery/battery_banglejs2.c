@@ -59,8 +59,8 @@ int battery_get_millivolts(void) {
   uint32_t avg_reading = reading.vmon_total / NUM_CONVERSIONS;
 
   // ADC reading at 4.2V battery (calibrated full-scale)
-  // This is approximately 4580 for VDD ≈ 3.74V
-  const uint32_t kAdcFullScale = 4580;
+  // Calibrated to 4700 based on full-charge test: mvRaw=4700 at 100%
+  const uint32_t kAdcFullScale = 4700;
   const uint32_t kBatteryFullMv = 4200;  // 4.2V in mV
 
   // Vbatt_mV = kBatteryFullMv * avg_reading / kAdcFullScale
