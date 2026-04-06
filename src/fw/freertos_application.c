@@ -132,6 +132,14 @@ extern void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime ) {
 #endif
 
       power_tracking_start(PowerSystemMcuCoreSleep);
+
+#if defined(MICRO_FAMILY_NRF5)
+      /* Work around nRF52 Erratum 87: WFI wakes immediately if FPU interrupt is pending. */
+      __set_FPSCR(__get_FPSCR() & ~(0x0000009F));
+      (void)__get_FPSCR();
+      NVIC_ClearPendingIRQ(FPU_IRQn);
+#endif
+
       __DSB();  // Drain any pending memory writes before entering sleep.
       do_wfi();  // Wait for Interrupt (enter sleep mode). Work around F2/F4 errata.
       __ISB();  // Let the pipeline catch up (force the WFI to activate before moving on).
@@ -158,15 +166,24 @@ extern void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime ) {
     } else {
       const RtcTicks stop_duration = MIN(xExpectedIdleTime - EARLY_WAKEUP_TICKS, MAX_STOP_TICKS);
 
+      PBL_LOG_INFO("Entering deep sleep (STOP mode), duration=%lu ticks", (unsigned long)stop_duration);
       // Go into stop mode until the wakeup_tick.
       s_last_ticks_commanded_in_stop = stop_duration;
 
       rtc_alarm_set(stop_duration);
       enter_stop_mode();
-
       RtcTicks ticks_elapsed = rtc_alarm_get_elapsed_ticks();
+      PBL_LOG_INFO("Exiting deep sleep, actual=%lu ticks", (unsigned long)ticks_elapsed);
 
       s_last_ticks_elapsed_in_stop = ticks_elapsed;
+      
+      // Prevent FreeRTOS configASSERT((xTickCount + xTicksToJump) <= xNextTaskUnblockTime) 
+      // by capping the stepped ticks. The system might over-sleep gracefully due to QSPI
+      // deep power down and wake-up latencies exceeding the expected idle time.
+      if (ticks_elapsed > xExpectedIdleTime) {
+        ticks_elapsed = xExpectedIdleTime;
+      }
+      
       vTaskStepTick(ticks_elapsed);
 
       // Update the task watchdog every time we come out of STOP mode (which is

@@ -41,7 +41,9 @@ static bool s_dma_enabled = false;
 static void stop_mode_timeout_timer_callback(void* cb_data) {
   // re-enable stop mode
   if (s_stop_mode_inhibited) {
+#ifndef BOARD_NO_DBG_SERIAL
     stop_mode_enable(InhibitorDbgSerial);
+#endif
     s_stop_mode_inhibited = false;
   }
 }
@@ -57,7 +59,9 @@ static bool prv_uart_irq_handler(UARTDevice *dev, uint8_t data, const UARTRXErro
 
 void dbgserial_input_init(void) {
 #ifndef MICRO_FAMILY_SF32LB52
+#ifndef BOARD_NO_DBG_SERIAL
   exti_configure_pin(BOARD_CONFIG.dbgserial_int, ExtiTrigger_Falling, dbgserial_interrupt_handler);
+#endif
 
   // some platforms have a seperate pin for the EXTI int and the USART
   if (BOARD_CONFIG.dbgserial_int_gpio.gpio != NULL) {
@@ -79,7 +83,9 @@ void dbgserial_input_init(void) {
 
 void dbgserial_enable_rx_exti(void) {
 #ifndef MICRO_FAMILY_SF32LB52
+#ifndef BOARD_NO_DBG_SERIAL
   exti_enable(BOARD_CONFIG.dbgserial_int);
+#endif
 #endif
 }
 
@@ -97,7 +103,9 @@ static void prv_start_timer_callback(void* data) {
 }
 
 static void dbgserial_interrupt_handler(bool *should_context_switch) {
+#ifndef BOARD_NO_DBG_SERIAL
   exti_disable(BOARD_CONFIG.dbgserial_int);
+#endif
 
   // Start the timer
   system_task_add_callback_from_isr(prv_start_timer_callback, (void *)0, should_context_switch);
@@ -108,7 +116,9 @@ static void dbgserial_interrupt_handler(bool *should_context_switch) {
     // ctrl-d to leave the prompt, and then ctrl-c again before the timer goes off, we'll have the
     // timer still running. If we were to disable stop again after rescheduling the timer, the timer
     // would only go off once for the two disables and we'd end up jamming the reference count.
+#ifndef BOARD_NO_DBG_SERIAL
     stop_mode_disable(InhibitorDbgSerial);
+#endif
     s_stop_mode_inhibited = true;
   }
 }

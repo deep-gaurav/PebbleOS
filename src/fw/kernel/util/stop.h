@@ -54,6 +54,9 @@ void stop_mode_enable(StopModeInhibitor inhibitor);
 //! Check whether we are permitted to go into stop mode
 bool stop_mode_is_allowed(void);
 
+//! Log the current stop mode status (for debugging)
+void log_stop_mode_status(void);
+
 
 //! Enable or disable sleep mode.
 //! Note: When sleep mode is disabled so is stop mode. When sleep mode is enabled, stop mode is

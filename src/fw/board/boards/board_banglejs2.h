@@ -3,6 +3,8 @@
 #include "services/imu/units.h"
 #include "util/size.h"
 
+#define BOARD_NO_DBG_SERIAL
+
 #define BT_VENDOR_ID 0x0EEA
 #define BT_VENDOR_NAME "Core Devices LLC"
 
@@ -23,10 +25,7 @@ static const BoardConfig BOARD_CONFIG = {
     .gpio_pin = NRF_GPIO_PIN_MAP(1, 10),
   },
 
-  .has_mic = true,
-  .mic_config = {
-    .gain = 40,
-  },
+  .has_mic = false,
 
   .lcd_com = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 6), true },
 };
@@ -162,3 +161,8 @@ extern I2CSlavePort * const I2C_LSM6D;
 #define BATTERY_VOLTAGE_PIN NRF_GPIO_PIN_MAP(0, 3)
 //! Charging detect pin is P0.23 which is D23 on Bangle.js v2 (active low)
 #define CHARGE_DETECT_PIN NRF_GPIO_PIN_MAP(0, 23)
+
+//! Configure board for low power sleep - called before enter_stop_mode()
+void board_sleep(void);
+//! Restore board after wake - called after exit from stop_mode
+void board_wake(void);

@@ -16,6 +16,8 @@
 #include "os/mutex.h"
 #include "system/passert.h"
 
+#include "drivers/touch/touch_sensor.h"
+
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
@@ -291,6 +293,11 @@ static void prv_change_state(BacklightState new_state) {
   }
 
   if (s_current_brightness != new_brightness) {
+    if (new_brightness > BACKLIGHT_BRIGHTNESS_OFF && s_current_brightness <= BACKLIGHT_BRIGHTNESS_OFF) {
+      touch_sensor_set_enabled(true);
+    } else if (new_brightness <= BACKLIGHT_BRIGHTNESS_OFF && s_current_brightness > BACKLIGHT_BRIGHTNESS_OFF) {
+      touch_sensor_set_enabled(false);
+    }
     prv_change_brightness(new_brightness);
   }
 }

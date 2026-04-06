@@ -7,6 +7,7 @@
 #include "drivers/periph_config.h"
 #include "drivers/rtc.h"
 #include "drivers/task_watchdog.h"
+#include "drivers/touch/touch_sensor.h"
 #include "os/tick.h"
 #include "kernel/util/stop.h"
 #include "kernel/util/wfi.h"
@@ -14,6 +15,10 @@
 #include "services/common/analytics/analytics.h"
 #include "system/passert.h"
 #include "console/dbgserial_input.h"
+
+// board_sleep/wake are defined in board_banglejs2.c
+extern void board_sleep(void);
+extern void board_wake(void);
 
 #define STM32F2_COMPATIBLE
 #define STM32F4_COMPATIBLE
@@ -25,7 +30,13 @@
 #include <stdbool.h>
 #include <inttypes.h>
 
+// Flag to suppress button event on wake (defined in debounced_button.c)
+extern volatile bool s_suppress_button_event_on_wake;
+
 static int s_num_items_disallowing_stop_mode = 0;
+
+// Track last wake time to measure how long system stays awake between stop cycles
+static uint32_t s_last_wake_end_ticks = 0;
 
 #ifdef PBL_NOSLEEP
 static bool s_sleep_mode_allowed = false;
@@ -43,22 +54,120 @@ typedef struct {
 // they are read and modified by multiple threads
 static InhibitorTickProfile s_inhibitor_profile[InhibitorNumItems];
 
+static const char* s_inhibitor_names[] = {
+  "Main",
+  "DbgSerial",
+  "Button",
+  "Bluetooth",
+  "Display",
+  "Backlight",
+  "CommMode",
+  "Flash",
+  "I2C1",
+  "I2C2",
+  "Mic",
+  "Vibes",
+  "Compositor",
+  "I2C3",
+  "I2C4",
+  "BluetoothWatchdog",
+  "PWM",
+  "Audio",
+  "UARTRX",
+};
+
 #if MICRO_FAMILY_NRF5
 void enter_stop_mode(void) {
+  PBL_LOG_INFO("Entering STOP mode (deep sleep)");
+
+  // Capture time for flash power down (before WFI measurement)
+  uint32_t flash_down_start = NRF_RTC0->COUNTER;
+
   dbgserial_enable_rx_exti();
   dbgserial_disable_rx_dma_before_stop();
+
+  // Disable touch before sleep to prevent spurious wakeups
+  touch_sensor_set_enabled(false);
+
+  // Configure board pins for low power sleep
+  board_sleep();
 
   flash_power_down_for_stop_mode();
   rtc_systick_pause();
 
   /* XXX(nrf5): LATER: have MPSL turn off HFCLK */
 
+  /* Work around nRF52 Erratum 87: WFI wakes immediately if FPU interrupt is pending. */
+  __set_FPSCR(__get_FPSCR() & ~(0x0000009F));
+  (void)__get_FPSCR();
+  NVIC_ClearPendingIRQ(FPU_IRQn);
+
+  // Capture RTC0 counter just before WFI to measure wake duration later
+  uint32_t wake_start_ticks = NRF_RTC0->COUNTER;
+
+  // Suppress button event on wake (button press to wake should not trigger button action)
+  s_suppress_button_event_on_wake = true;
+
   __DSB(); // Drain any pending memory writes before entering sleep.
   do_wfi(); // Wait for Interrupt (enter sleep mode). Work around F2/F4 errata.
   __ISB(); // Let the pipeline catch up (force the WFI to activate before moving on).
 
+  uint32_t ispr0 = NVIC->ISPR[0];
+  uint32_t ispr1 = NVIC->ISPR[1];
+  uint32_t icsr = SCB->ICSR;
+
+  // Capture time just before flash power up to isolate flash overhead
+  uint32_t flash_up_start = NRF_RTC0->COUNTER;
+
   rtc_systick_resume();
   flash_power_up_after_stop_mode();
+
+  // Restore board pins after wake
+  board_wake();
+
+  // Capture time after all wake processing
+  uint32_t wake_end_ticks = NRF_RTC0->COUNTER;
+
+  // Calculate flash power down overhead
+  uint32_t flash_down_ticks = wake_start_ticks - flash_down_start;
+  if (wake_start_ticks < flash_down_start) flash_down_ticks += 0x1000000;
+  uint32_t flash_down_us = (flash_down_ticks * 1000000) / 32768;
+
+  // Calculate flash power up overhead
+  uint32_t flash_up_ticks = wake_end_ticks - flash_up_start;
+  if (wake_end_ticks < flash_up_start) flash_up_ticks += 0x1000000;
+  uint32_t flash_up_us = (flash_up_ticks * 1000000) / 32768;
+
+  // Calculate STOP duration (WFI sleep time)
+  uint32_t stop_ticks = flash_up_start - wake_start_ticks;
+  if (flash_up_start < wake_start_ticks) stop_ticks += 0x1000000;
+  uint32_t stop_us = (stop_ticks * 1000000) / 32768;
+
+  // Calculate time spent processing (from wake to next enter_stop_mode call)
+  uint32_t processing_us = 0;
+  if (s_last_wake_end_ticks != 0) {
+    uint32_t wake_ticks;
+    if (wake_start_ticks >= s_last_wake_end_ticks) {
+      wake_ticks = wake_start_ticks - s_last_wake_end_ticks;
+    } else {
+      wake_ticks = (0x1000000 - s_last_wake_end_ticks) + wake_start_ticks;
+    }
+    processing_us = (wake_ticks * 1000000) / 32768;
+  }
+
+  // Time from wake to enter_stop_mode entry
+  uint32_t entry_overhead_us = 0;
+  if (s_last_wake_end_ticks != 0) {
+    uint32_t entry_ticks = flash_down_start - s_last_wake_end_ticks;
+    if (flash_down_start < s_last_wake_end_ticks) entry_ticks += 0x1000000;
+    entry_overhead_us = (entry_ticks * 1000000) / 32768;
+  }
+
+  PBL_LOG_INFO("Woke from WFI (stop=%lu us, wake_src=0x%"PRIx32")",
+               (unsigned long)stop_us, ispr0);
+
+  // Save wake end time for gap calculation in next cycle
+  s_last_wake_end_ticks = wake_end_ticks;
 
   dbgserial_enable_rx_dma_after_stop();
 }
@@ -171,6 +280,21 @@ bool stop_mode_is_allowed(void) {
 #else
   return s_num_items_disallowing_stop_mode == 0;
 #endif
+}
+
+void log_stop_mode_status(void) {
+  if (s_num_items_disallowing_stop_mode == 0) {
+    PBL_LOG_INFO("Stop mode: allowed=1, num_inhibitors=0");
+    return;
+  }
+
+  PBL_LOG_INFO("Stop mode: allowed=0, num_inhibitors=%d, active:", s_num_items_disallowing_stop_mode);
+  for (int i = 0; i < InhibitorNumItems; i++) {
+    if (s_inhibitor_profile[i].active_count > 0) {
+      PBL_LOG_INFO("  - %s (count=%lu)", s_inhibitor_names[i],
+               (unsigned long)s_inhibitor_profile[i].active_count);
+    }
+  }
 }
 
 void sleep_mode_enable(bool enable) {

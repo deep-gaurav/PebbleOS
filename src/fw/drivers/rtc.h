@@ -96,6 +96,9 @@ void rtc_timezone_clear(void);
 //! @return the number of ticks that have elapsed since rtc_alarm_set was last called.
 RtcTicks rtc_alarm_get_elapsed_ticks(void);
 
+//! @return True if the RTC alarm was the wakeup source (vs external interrupt)
+bool rtc_alarm_was_wakeup_source(void);
+
 //! @return True if the RTC alarm functionality has been initialized. This can be used to prevent
 //!     us from going into stop mode before we're ready to wake up from it.
 bool rtc_alarm_is_initialized(void);

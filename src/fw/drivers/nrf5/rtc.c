@@ -373,6 +373,18 @@ void rtc_systick_pause(void) {
   // mode -- we have a timer set for that, after all.
   nrf_rtc_event_disable(BOARD_RTC_INST, NRF_RTC_EVENT_TICK);
   nrf_rtc_int_disable(BOARD_RTC_INST, NRF_RTC_INT_TICK_MASK);
+  
+  nrf_rtc_event_clear(BOARD_RTC_INST, NRF_RTC_EVENT_TICK);
+  // Clear the NVIC pending state because the TICK event might have latched
+  // into the NVIC just before we disabled the peripheral interrupt.
+  NVIC_ClearPendingIRQ(BOARD_RTC_IRQN);
+  
+  // Re-pend the interrupt if either the ALARM or WATCHDOG events have already
+  // fired while we were busy entering the stop mode.
+  if (nrf_rtc_event_check(BOARD_RTC_INST, NRF_RTC_EVENT_COMPARE_0) ||
+      nrf_rtc_event_check(BOARD_RTC_INST, NRF_RTC_EVENT_COMPARE_1)) {
+    NVIC_SetPendingIRQ(BOARD_RTC_IRQN);
+  }
 }
 
 void rtc_systick_resume(void) {
@@ -425,6 +437,10 @@ void rtc_alarm_set(RtcTicks num_ticks) {
 
 RtcTicks rtc_alarm_get_elapsed_ticks(void) {
   return rtc_get_ticks() - s_alarm_set_time;
+}
+
+bool rtc_alarm_was_wakeup_source(void) {
+  return nrf_rtc_event_check(BOARD_RTC_INST, NRF_RTC_EVENT_COMPARE_0);
 }
 
 bool rtc_alarm_is_initialized(void) {

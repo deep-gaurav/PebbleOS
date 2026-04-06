@@ -308,11 +308,6 @@ static void init_drivers(void) {
 #if CAPABILITY_HAS_TOUCHSCREEN
   touch_sensor_init();
   log_write("init_drivers: after touch_sensor_init\r\n");
-#if !defined(RECOVERY_FW)
-  // Only keep touch enabled on recovery (and so manufacturing as well)
-  // Once supported in main firmware, this should be removed.
-  touch_sensor_set_enabled(false);
-#endif
 #endif
 
   accel_init();

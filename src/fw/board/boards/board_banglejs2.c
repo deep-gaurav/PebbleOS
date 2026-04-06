@@ -65,8 +65,8 @@ QSPIFlash *const QSPI_FLASH = &QSPI_FLASH_DEVICE;
 static UARTDeviceState s_dbg_uart_state;
 static UARTDevice DBG_UART_DEVICE = {
     .state = &s_dbg_uart_state,
-    .tx_gpio = NRF_GPIO_PIN_MAP(1, 11),
-    .rx_gpio = NRF_GPIO_PIN_MAP(1, 10),
+    .tx_gpio = NRF_UARTE_PSEL_DISCONNECTED,
+    .rx_gpio = NRF_UARTE_PSEL_DISCONNECTED,
     .rts_gpio = NRF_UARTE_PSEL_DISCONNECTED,
     .cts_gpio = NRF_UARTE_PSEL_DISCONNECTED,
     .periph = NRFX_UARTE_INSTANCE(0),
@@ -110,6 +110,7 @@ static const I2CBus I2C_NPMC_IIC1_BUS = {
             .gpio = NRF5_GPIO_RESOURCE_EXISTS,
             .gpio_pin = NRF_GPIO_PIN_MAP(0, 15),
         },
+    .stop_mode_inhibitor = InhibitorI2C1,
     .name = "I2C_NPMC_IIC1",
 };
 IRQ_MAP_NRFX(SPI1_SPIM1_SPIS1_TWI1_TWIM1_TWIS1, nrfx_twim_1_irq_handler);
@@ -143,6 +144,7 @@ static const I2CBus I2C_IIC2_BUS = {
             .gpio = NRF5_GPIO_RESOURCE_EXISTS,
             .gpio_pin = NRF_GPIO_PIN_MAP(0, 11),
         },
+    .stop_mode_inhibitor = InhibitorI2C2,
     .name = "I2C_IIC2",
 };
 IRQ_MAP_NRFX(SPI0_SPIM0_SPIS0_TWI0_TWIM0_TWIS0, nrfx_twim_0_irq_handler);
@@ -321,6 +323,16 @@ static void touch_read(uint8_t addr, uint8_t cnt, uint8_t *data) {
   touch_wr_pin(TOUCH_PIN_SCL, true);
 }
 
+static void touch_write(uint8_t addr, uint8_t data) {
+  touch_i2c_start();
+  touch_i2c_wr(TOUCH_I2C_ADDR << 1);
+  touch_i2c_wr(addr);
+  touch_i2c_wr(data);
+  touch_i2c_stop();
+  touch_wr_pin(TOUCH_PIN_SDA, true);
+  touch_wr_pin(TOUCH_PIN_SCL, true);
+}
+
 static void prv_button_press_short(ButtonId button) {
   PebbleEvent e = {
     .type = PEBBLE_BUTTON_DOWN_EVENT,
@@ -382,6 +394,18 @@ void board_early_init(void) {
   while (!nrf_clock_event_check(NRF_CLOCK, NRF_CLOCK_EVENT_LFCLKSTARTED)) {
   }
   nrf_clock_event_clear(NRF_CLOCK, NRF_CLOCK_EVENT_LFCLKSTARTED);
+
+  // Enable DC-DC converter for significantly lower power consumption
+  // Without this, the LDO regulator draws ~5-10mA continuously
+  NRF_POWER->DCDCEN = 1;
+  NRF_POWER->DCDCEN0 = 1;
+
+  // Ensure GPS and HRM power pins are driven low (they default to input/floating)
+  // GPS (P0.29) draws ~25mA if powered, HRM (P0.21) draws ~1-2mA if powered
+  nrf_gpio_pin_clear(NRF_GPIO_PIN_MAP(0, 29));  // GPS power off
+  nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(0, 29));
+  nrf_gpio_pin_clear(NRF_GPIO_PIN_MAP(0, 21));  // HRM power off
+  nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(0, 21));
 }
 
 void board_init(void) {
@@ -415,4 +439,47 @@ void board_init(void) {
   exti_configure_pin(BOARD_CONFIG_TOUCH_EXTI, ExtiTrigger_Falling, touch_interrupt_handler);
   exti_enable(BOARD_CONFIG_TOUCH_EXTI);
   PBL_LOG_INFO("Touch IRQ enabled");
+}
+
+void touch_sensor_set_enabled(bool enabled) {
+  if (enabled) {
+    nrf_gpio_pin_clear(TOUCH_PIN_RST);
+    for (volatile int i = 0; i < 48000; i++)
+      ;
+    nrf_gpio_pin_set(TOUCH_PIN_RST);
+    for (volatile int i = 0; i < 480000; i++)
+      ;
+    exti_enable(BOARD_CONFIG_TOUCH_EXTI);
+  } else {
+    exti_disable(BOARD_CONFIG_TOUCH_EXTI);
+    // CST816S sleep command per Hackaday: write 0x03 to reg 0xE5
+    touch_write(0x03, 0xe5);
+  }
+}
+
+void board_sleep(void) {
+  // Configure touch pins for low power after sending sleep command
+  // SDA and SCL: input with no pull to avoid current leakage
+  nrf_gpio_cfg_input(TOUCH_PIN_SDA, NRF_GPIO_PIN_NOPULL);
+  nrf_gpio_cfg_input(TOUCH_PIN_SCL, NRF_GPIO_PIN_NOPULL);
+  // RST: drive low to keep touch in reset
+  nrf_gpio_pin_clear(TOUCH_PIN_RST);
+  nrf_gpio_cfg_output(TOUCH_PIN_RST);
+
+  // Configure potentially floating I2C pins as input with no pull to prevent leakage
+  // These pins may have pull-ups that could draw current if left floating
+  nrf_gpio_cfg_input(NRF_GPIO_PIN_MAP(0, 2), NRF_GPIO_PIN_NOPULL);   // I2C SCL (pressure sensor)
+  nrf_gpio_cfg_input(NRF_GPIO_PIN_MAP(0, 44), NRF_GPIO_PIN_NOPULL);  // Compass SDA
+  nrf_gpio_cfg_input(NRF_GPIO_PIN_MAP(0, 45), NRF_GPIO_PIN_NOPULL);  // Compass SCL
+  nrf_gpio_cfg_input(NRF_GPIO_PIN_MAP(0, 47), NRF_GPIO_PIN_NOPULL);  // Pressure SDA
+}
+
+void board_wake(void) {
+  // Restore touch pins for normal operation
+  nrf_gpio_pin_set(TOUCH_PIN_SDA);
+  nrf_gpio_pin_set(TOUCH_PIN_SCL);
+  nrf_gpio_cfg_output(TOUCH_PIN_SDA);
+  nrf_gpio_cfg_output(TOUCH_PIN_SCL);
+  nrf_gpio_pin_set(TOUCH_PIN_RST);
+  nrf_gpio_cfg_output(TOUCH_PIN_RST);
 }
