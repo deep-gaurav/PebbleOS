@@ -129,6 +129,16 @@ static void prv_evaluate(ReconnectType prev_type) {
         ad, advert_terms, sizeof(advert_terms) / sizeof(GAPLEAdvertisingJobTerm),
         prv_advert_job_unscheduled_callback, NULL, GAPLEAdvertisingJobTagReconnection);
 
+    // Reset s_is_connected flag to ensure advertising actually starts.
+    // Without this, prv_perform_next_job() may skip enabling advertising
+    // if s_is_connected is still true from before sleep.
+    gap_le_advert_handle_disconnect_as_slave();
+
+    if (s_reconnect_advert_job == NULL) {
+      PBL_LOG_DBG("Failed to schedule reconnection advertising (comm likely stopping)");
+      // Don't set s_is_basic_reconnection_enabled - reconnection will be retried on next wake
+    }
+
     if (use_hrm_payload) {
       ble_ad_destroy(ad);
     }

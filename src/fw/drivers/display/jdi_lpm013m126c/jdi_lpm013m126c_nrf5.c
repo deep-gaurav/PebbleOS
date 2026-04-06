@@ -43,6 +43,7 @@ static const unsigned int DISP_MODE_CLEAR = 0x20;
 static uint32_t s_spi_clock_hz;
 
 static bool s_initialized = false;
+static bool s_display_enabled = false;
 
 static volatile int s_spidma_waiting = 0;
 static volatile int s_spidma_immediate = 0;
@@ -317,6 +318,10 @@ void display_update(NextRowCallback nrcb, UpdateCompleteCallback uccb) {
 }
 
 void display_pulse_vcom(void) {
+  // Skip VCOM pulse if display is powered off (memory LCD retains state without power)
+  if (!s_display_enabled) {
+    return;
+  }
   PBL_ASSERTN(BOARD_CONFIG.lcd_com.gpio != 0);
   gpio_output_set(&BOARD_CONFIG.lcd_com, true);
   // the spec requires at least 1us; this provides ~2 so should be safe
@@ -477,6 +482,9 @@ void display_show_splash_screen(void) {
 }
 
 void display_set_enabled(bool enabled) {
+  // LCD_DISP pin: HIGH = on, LOW = off (per comment in prv_display_start)
+  gpio_output_set(&BOARD_CONFIG_DISPLAY.on_ctrl, enabled);
+  s_display_enabled = enabled;
 }
 
 void display_set_rotated(bool rotated) {

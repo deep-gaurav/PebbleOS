@@ -143,8 +143,9 @@ typedef struct PACKED { // 1 byte
   bool is_active; //<! do not disturb has become active or has become inactive
 } PebbleDoNotDisturbEvent;
 
-typedef struct PACKED { // 1 byte?
+typedef struct PACKED { // 2 bytes
   ButtonId button_id;
+  uint8_t suppress_action;  //!< If true, button action (back, coredump, etc) should be suppressed
 } PebbleButtonEvent;
 
 typedef enum PhoneEventType {

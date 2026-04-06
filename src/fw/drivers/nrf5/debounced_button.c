@@ -35,6 +35,9 @@ static const uint32_t NUM_DEBOUNCE_SAMPLES = 20;
 // reset-buttons-held timeout is set to 5 seconds:
 #define RESET_THRESHOLD_SAMPLES (5 * DEBOUNCE_SAMPLES_PER_SECOND)
 
+// Flag to suppress button event when CPU just woke from deep sleep (just wake, don't trigger action)
+volatile bool s_suppress_button_event_on_wake = false;
+
 static void prv_timer_handler(nrf_timer_event_t evt, void *ctx);
 
 static void initialize_button_timer(void) {
@@ -169,11 +172,18 @@ static void prv_timer_handler(nrf_timer_event_t evt, void *ctx) {
         clear_stuck_button(i);
       }
 
+      // Generate button event (for backlight wake) but signal if action should be suppressed
       PebbleEvent e = {
         .type = (is_pressed) ? PEBBLE_BUTTON_DOWN_EVENT : PEBBLE_BUTTON_UP_EVENT,
-        .button.button_id = i
+        .button.button_id = i,
+        .button.suppress_action = s_suppress_button_event_on_wake,
       };
       should_context_switch = event_put_isr(&e);
+
+      // Clear the suppress flag after first wake
+      if (s_suppress_button_event_on_wake) {
+        s_suppress_button_event_on_wake = false;
+      }
     }
   }
 

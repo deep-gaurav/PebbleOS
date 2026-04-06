@@ -179,41 +179,46 @@ static void back_button_force_quit_handler(void *data) {
 static void launcher_handle_button_event(PebbleEvent* e) {
   ButtonId button_id = e->button.button_id;
   const bool watchface_running = app_manager_is_watchface_running();
+  const bool suppress_action = e->button.suppress_action;
 
-  // trigger the backlight on any button down event
+  // trigger the backlight on any button down event (always, even on wake)
   if (e->type == PEBBLE_BUTTON_DOWN_EVENT) {
     PBL_ANALYTICS_ADD(button_pressed_count, 1);
 
-    if (button_id == BUTTON_ID_BACK && !watchface_running &&
-        process_metadata_get_run_level(
-            app_manager_get_current_app_md()) == ProcessAppRunLevelNormal) {
-      // Start timer for force-quitting app
-      s_force_quit_was_cancelled = false;
-      bool success = new_timer_start(s_back_hold_timer, FORCE_QUIT_HOLD_MS, back_button_force_quit_handler, NULL,
-                                     0 /*flags*/);
-      PBL_ASSERTN(success);
-    }
-    
+    // Skip button action on wake from deep sleep - only wake, don't trigger back/coredump/etc
+    if (!suppress_action) {
+      if (button_id == BUTTON_ID_BACK && !watchface_running &&
+          process_metadata_get_run_level(
+              app_manager_get_current_app_md()) == ProcessAppRunLevelNormal) {
+        // Start timer for force-quitting app
+        s_force_quit_was_cancelled = false;
+        bool success = new_timer_start(s_back_hold_timer, FORCE_QUIT_HOLD_MS, back_button_force_quit_handler, NULL,
+                                       0 /*flags*/);
+        PBL_ASSERTN(success);
+      }
+
 #ifndef SHELL_SDK
-    // 10 quick-presses of the back button triggers a manual coredump, if
-    // that feature is enabled in system settings.
-    if (button_id == BUTTON_ID_BACK) {
-      RtcTicks now = rtc_get_ticks();
-      if ((now - s_back_quickpress_last) > BACK_QUICKPRESS_INTERVAL_TICKS) {
-        s_back_quickpress_count = 0;
+      // 10 quick-presses of the back button triggers a manual coredump, if
+      // that feature is enabled in system settings.
+      if (button_id == BUTTON_ID_BACK) {
+        RtcTicks now = rtc_get_ticks();
+        if ((now - s_back_quickpress_last) > BACK_QUICKPRESS_INTERVAL_TICKS) {
+          s_back_quickpress_last = now;
+          s_back_quickpress_count = 0;
+        }
+        s_back_quickpress_last = now;
+        s_back_quickpress_count++;
+        if (s_back_quickpress_count >= BACK_QUICKPRESS_COREDUMP_PRESSES && shell_prefs_can_coredump_on_request()) {
+          PBL_LOG_INFO("triggering core dump because you asked for it!");
+          core_dump_reset(true /* is_forced */);
+        }
       }
-      s_back_quickpress_last = now;
-      s_back_quickpress_count++;
-      if (s_back_quickpress_count >= BACK_QUICKPRESS_COREDUMP_PRESSES && shell_prefs_can_coredump_on_request()) {
-        PBL_LOG_INFO("triggering core dump because you asked for it!");
-        core_dump_reset(true /* is_forced */);
-      }
-    }
 #endif // !SHELL_SDK
+    }
 
     light_button_pressed();
   } else if (e->type == PEBBLE_BUTTON_UP_EVENT) {
-    if (button_id == BUTTON_ID_BACK) {
+    if (button_id == BUTTON_ID_BACK && !suppress_action) {
       launcher_cancel_force_quit();
     }
     light_button_released();
@@ -223,6 +228,12 @@ static void launcher_handle_button_event(PebbleEvent* e) {
 
   if (compositor_is_animating()) {
     // mask the app task if we're already animating
+    e->task_mask |= 1 << PebbleTask_App;
+    return;
+  }
+
+  // On wake from deep sleep, mask the button event from app task (suppress button action)
+  if (suppress_action) {
     e->task_mask |= 1 << PebbleTask_App;
     return;
   }
