@@ -13,6 +13,7 @@
 #include "comm/bt_lock.h"
 
 #include "kernel/event_loop.h"
+#include "kernel/util/stop.h"
 #include "services/common/bluetooth/bluetooth_persistent_storage.h"
 #include "services/common/regular_timer.h"
 #include "util/size.h"
@@ -57,6 +58,14 @@ static ReconnectType prv_current_reconnect_type(void) {
 static void prv_unschedule_adv_if_needed(void) {
   if (prv_is_advertising_for_reconnection()) {
     gap_le_advert_unschedule(s_reconnect_advert_job);
+  }
+}
+
+//! Re-enable stop mode if no reconnection advertising is active.
+//! Called when reconnection advertising is stopped.
+static void prv_maybe_enable_stop_mode(void) {
+  if (prv_current_reconnect_type() == ReconnectType_None) {
+    stop_mode_enable(InhibitorBluetooth);
   }
 }
 
@@ -158,6 +167,8 @@ void gap_le_slave_reconnect_stop(void) {
   bt_lock();
   {
     prv_set_and_evaluate(&s_is_basic_reconnection_enabled, false);
+    // Allow system to enter stop mode again, but only if no other reconnection is active.
+    prv_maybe_enable_stop_mode();
   }
   bt_unlock();
 }
@@ -185,6 +196,11 @@ void gap_le_slave_reconnect_start(void) {
       goto unlock;
     }
 
+    // Prevent system from entering stop mode while reconnection advertising
+    // is active. Without this, the system may sleep and the advertising cycle
+    // timer won't fire, so reconnection advertising never actually starts.
+    stop_mode_disable(InhibitorBluetooth);
+
     prv_set_and_evaluate(&s_is_basic_reconnection_enabled, true);
   }
 unlock:
@@ -211,6 +227,11 @@ void gap_le_slave_reconnect_hrm_restart(void) {
   {
     prv_set_and_evaluate(&s_is_hrm_reconnection_enabled, true);
 
+    // Prevent system from entering stop mode while reconnection advertising
+    // is active. This is reference-counted, so it's safe to call even if
+    // basic reconnection is already holding the inhibitor.
+    stop_mode_disable(InhibitorBluetooth);
+
     // Always restart the timer:
     if (!regular_timer_is_scheduled(&s_hrm_reconnect_timer)) {
       s_hrm_reconnect_timer = (RegularTimerInfo) {
@@ -231,6 +252,9 @@ void gap_le_slave_reconnect_hrm_stop(void) {
     if (regular_timer_is_scheduled(&s_hrm_reconnect_timer)) {
       regular_timer_remove_callback(&s_hrm_reconnect_timer);
     }
+
+    // Allow system to enter stop mode again, but only if no other reconnection is active.
+    prv_maybe_enable_stop_mode();
   }
   bt_unlock();
 }
