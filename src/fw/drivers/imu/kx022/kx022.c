@@ -1,0 +1,306 @@
+/* SPDX-FileCopyrightText: 2025 Core Devices LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include "kx022.h"
+#include "kx022_private.h"
+#include "kx022_regs.h"
+
+#include "board/board.h"
+#include "drivers/accel.h"
+#include "drivers/i2c.h"
+#include "drivers/rtc.h"
+#include "kernel/util/delay.h"
+#include "os/mutex.h"
+#include "services/common/new_timer/new_timer.h"
+#include "system/logging.h"
+#include "system/passert.h"
+#include "util/time/time.h"
+
+static KX022State s_kx022_state;
+static const KX022Config *s_kx022_config;
+static PebbleMutex *s_kx022_mutex;
+static uint32_t s_kx022_timer_id;
+static uint32_t s_kx022_num_samples;
+
+static void prv_write_register(uint8_t reg, uint8_t value) {
+  i2c_use(s_kx022_config->i2c);
+  i2c_write_register(s_kx022_config->i2c, reg, value);
+  i2c_release(s_kx022_config->i2c);
+}
+
+static uint8_t prv_read_register(uint8_t reg) {
+  uint8_t value;
+  i2c_use(s_kx022_config->i2c);
+  i2c_read_register(s_kx022_config->i2c, reg, &value);
+  i2c_release(s_kx022_config->i2c);
+  return value;
+}
+
+static void prv_read_registers(uint8_t reg, uint8_t *buffer, uint32_t length) {
+  i2c_use(s_kx022_config->i2c);
+  i2c_read_register_block(s_kx022_config->i2c, reg, length, buffer);
+  i2c_release(s_kx022_config->i2c);
+}
+
+static void prv_read_sample(AccelDriverSample *sample) {
+  uint8_t buffer[6];
+  prv_read_registers(KX022_XOUT_L, buffer, 6);
+  
+  int16_t raw_x = (int16_t)((buffer[1] << 8) | buffer[0]);
+  int16_t raw_y = (int16_t)((buffer[3] << 8) | buffer[2]);
+  int16_t raw_z = (int16_t)((buffer[5] << 8) | buffer[4]);
+  
+  int16_t samples[3] = {raw_x, raw_y, raw_z};
+  int16_t mapped[3];
+  
+  for (int i = 0; i < 3; i++) {
+    int mapped_idx = s_kx022_config->axis_map[i];
+    mapped[i] = samples[mapped_idx] * s_kx022_config->axis_dir[i];
+  }
+  
+  uint16_t scale_mg = s_kx022_config->scale_mg;
+  int32_t x_mg = ((int32_t)mapped[0] * scale_mg) / 32768;
+  int32_t y_mg = ((int32_t)mapped[1] * scale_mg) / 32768;
+  int32_t z_mg = ((int32_t)mapped[2] * scale_mg) / 32768;
+  
+  time_t time_s;
+  uint16_t time_ms;
+  rtc_get_time_ms(&time_s, &time_ms);
+  uint64_t timestamp_us = ((uint64_t)time_s) * 1000 + time_ms;
+  
+  *sample = (AccelDriverSample){
+    .x = (int16_t)x_mg,
+    .y = (int16_t)y_mg,
+    .z = (int16_t)z_mg,
+    .timestamp_us = timestamp_us,
+  };
+  
+  static uint32_t poll_count = 0;
+  if (poll_count % 10 == 0) {
+    PBL_LOG_INFO("KX022: XYZ=%d %d %d mg\n", (int)x_mg, (int)y_mg, (int)z_mg);
+  }
+  poll_count++;
+}
+
+static void prv_timer_callback(void *data) {
+  mutex_lock(s_kx022_mutex);
+  
+  if (s_kx022_num_samples > 0 && s_kx022_state.powered_up) {
+    AccelDriverSample sample;
+    prv_read_sample(&sample);
+    s_kx022_state.last_sample = sample;
+    s_kx022_state.last_sample_valid = true;
+    
+    for (uint32_t i = 0; i < s_kx022_num_samples; i++) {
+      accel_cb_new_sample(&sample);
+    }
+  }
+  
+  if (s_kx022_state.shake_detection_enabled || s_kx022_state.double_tap_enabled) {
+    uint8_t ins1 = prv_read_register(KX022_INS1);
+    
+    if ((ins1 & KX022_INS1_WUFS) && s_kx022_state.shake_detection_enabled) {
+      PBL_LOG_DBG("KX022: Shake detected");
+      accel_cb_shake_detected(AXIS_Z, 0);
+    }
+    
+    if ((ins1 & KX022_INS1_TDS) && s_kx022_state.double_tap_enabled) {
+      PBL_LOG_DBG("KX022: Tap detected");
+    }
+    
+    prv_read_register(KX022_INT_REL);
+  }
+  
+  mutex_unlock(s_kx022_mutex);
+}
+
+void kx022_init(const KX022Config *config) {
+  s_kx022_config = config;
+  s_kx022_state = (KX022State){
+    .config = config,
+    .initialized = false,
+    .powered_up = false,
+  };
+  s_kx022_num_samples = 0;
+  s_kx022_mutex = mutex_create();
+  s_kx022_timer_id = new_timer_create();
+
+  PBL_LOG_INFO("KX022: Initializing accelerometer...\n");
+  
+  uint8_t whoami = prv_read_register(KX022_WHO_AM_I);
+  PBL_LOG_INFO("KX022: WHO_AM_I = 0x%02X (expected 0x14)\n", whoami);
+  
+  if (whoami != KX022_WHO_AM_I_VALUE) {
+    PBL_LOG_ERR("KX022: Wrong chip ID! Got 0x%02X, expected 0x%02X\n", 
+                  whoami, KX022_WHO_AM_I_VALUE);
+    return;
+  }
+
+  prv_write_register(KX022_CNTL1, 0x0A);
+  prv_write_register(KX022_CNTL2, KX022_CNTL2_SRST);
+  delay_us(10000);
+  
+  whoami = prv_read_register(KX022_WHO_AM_I);
+  PBL_LOG_INFO("KX022: After reset WHO_AM_I = 0x%02X\n", whoami);
+
+  prv_write_register(KX022_CNTL3, 0x98);
+  
+  prv_write_register(KX022_ODCNTL, KX022_ODCNTL_OSA_12P5);
+  s_kx022_state.sampling_interval_us = 80000;
+
+  prv_write_register(KX022_INC1, 0x00);
+  prv_write_register(KX022_INC2, 0x00);
+  prv_write_register(KX022_INC3, 0x00);
+  prv_write_register(KX022_INC4, 0x00);
+  prv_write_register(KX022_INC5, 0x00);
+  prv_write_register(KX022_INC6, 0x00);
+
+  prv_write_register(KX022_WUFC, 0x03);
+  prv_write_register(KX022_TDTRC, 0x03);
+  prv_write_register(KX022_TDTC, 0x78);
+  prv_write_register(KX022_TTH, 0xCB);
+  prv_write_register(KX022_TTL, 0x25);
+  prv_write_register(KX022_WUFTH, 0x01);
+  prv_write_register(KX022_LP_CNTL, KX022_LP_CNTL_AVER_4X);
+  prv_write_register(KX022_BUF_CLEAR, 0x00);
+
+  uint8_t cntl1 = KX022_CNTL1_RES | KX022_CNTL1_DRDYE;
+  
+  if (config->scale_mg <= 2000) {
+    cntl1 |= KX022_CNTL1_GSEL_2G;
+  } else if (config->scale_mg <= 4000) {
+    cntl1 |= KX022_CNTL1_GSEL_4G;
+  } else if (config->scale_mg <= 8000) {
+    cntl1 |= KX022_CNTL1_GSEL_8G;
+  } else {
+    cntl1 |= KX022_CNTL1_GSEL_16G;
+  }
+  
+  cntl1 |= KX022_CNTL1_PC1;
+  prv_write_register(KX022_CNTL1, cntl1);
+
+  s_kx022_state.initialized = true;
+  s_kx022_state.powered_up = true;
+  
+  PBL_LOG_INFO("KX022: Initialization complete\n");
+}
+
+void kx022_power_up(void) {
+}
+
+void kx022_power_down(void) {
+}
+
+uint32_t kx022_set_sampling_interval(uint32_t interval_us) {
+  if (!s_kx022_state.initialized) {
+    return 0;
+  }
+  
+  mutex_lock(s_kx022_mutex);
+  
+  uint32_t actual_interval_us;
+  if (interval_us >= 80000) {
+    prv_write_register(KX022_ODCNTL, KX022_ODCNTL_OSA_12P5);
+    actual_interval_us = 80000;
+  } else if (interval_us >= 40000) {
+    prv_write_register(KX022_ODCNTL, KX022_ODCNTL_OSA_25);
+    actual_interval_us = 40000;
+  } else if (interval_us >= 20000) {
+    prv_write_register(KX022_ODCNTL, KX022_ODCNTL_OSA_50);
+    actual_interval_us = 20000;
+  } else {
+    prv_write_register(KX022_ODCNTL, KX022_ODCNTL_OSA_100);
+    actual_interval_us = 10000;
+  }
+  
+  s_kx022_state.sampling_interval_us = actual_interval_us;
+  
+  if (s_kx022_num_samples > 0) {
+    new_timer_start(s_kx022_timer_id, actual_interval_us / 1000,
+                    prv_timer_callback, NULL, TIMER_START_FLAG_REPEATING);
+  }
+  
+  mutex_unlock(s_kx022_mutex);
+  
+  return actual_interval_us;
+}
+
+int kx022_peek(AccelDriverSample *data) {
+  if (!s_kx022_state.initialized) {
+    return -1;
+  }
+  
+  mutex_lock(s_kx022_mutex);
+  
+  if (s_kx022_state.last_sample_valid) {
+    *data = s_kx022_state.last_sample;
+    mutex_unlock(s_kx022_mutex);
+    return 0;
+  }
+  
+  if (s_kx022_state.powered_up) {
+    prv_read_sample(data);
+    s_kx022_state.last_sample = *data;
+    s_kx022_state.last_sample_valid = true;
+    mutex_unlock(s_kx022_mutex);
+    return 0;
+  }
+  
+  mutex_unlock(s_kx022_mutex);
+  return -1;
+}
+
+void kx022_set_num_samples(uint32_t num_samples) {
+  if (!s_kx022_state.initialized) {
+    return;
+  }
+  
+  mutex_lock(s_kx022_mutex);
+  
+  s_kx022_num_samples = num_samples;
+  
+  if (num_samples > 0) {
+    new_timer_start(s_kx022_timer_id, s_kx022_state.sampling_interval_us / 1000,
+                    prv_timer_callback, NULL, TIMER_START_FLAG_REPEATING);
+  } else {
+    new_timer_stop(s_kx022_timer_id);
+  }
+  
+  mutex_unlock(s_kx022_mutex);
+}
+
+void kx022_enable_shake_detection(bool on) {
+  s_kx022_state.shake_detection_enabled = on;
+  
+  if (!s_kx022_state.initialized) {
+    return;
+  }
+  
+  uint8_t cntl1 = prv_read_register(KX022_CNTL1);
+  if (on) {
+    cntl1 |= KX022_CNTL1_WUFE;
+  } else {
+    cntl1 &= ~KX022_CNTL1_WUFE;
+  }
+  prv_write_register(KX022_CNTL1, cntl1);
+  
+  PBL_LOG_INFO("KX022: Shake detection %s\n", on ? "enabled" : "disabled");
+}
+
+void kx022_enable_double_tap_detection(bool on) {
+  s_kx022_state.double_tap_enabled = on;
+  
+  if (!s_kx022_state.initialized) {
+    return;
+  }
+  
+  uint8_t cntl1 = prv_read_register(KX022_CNTL1);
+  if (on) {
+    cntl1 |= KX022_CNTL1_TDTE;
+  } else {
+    cntl1 &= ~KX022_CNTL1_TDTE;
+  }
+  prv_write_register(KX022_CNTL1, cntl1);
+  
+  PBL_LOG_INFO("KX022: Tap detection %s\n", on ? "enabled" : "disabled");
+}

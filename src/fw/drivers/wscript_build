@@ -420,8 +420,11 @@ elif bld.is_banglejs2():
         name='driver_accel',
         source=[
             'accel_stub.c',
+            'imu/kx022/kx022.c',
         ],
         use=[
+            'driver_i2c',
+            'driver_rtc',
             'fw_includes',
             'pbl_includes',
         ],

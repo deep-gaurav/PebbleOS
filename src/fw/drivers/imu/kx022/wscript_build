@@ -1,0 +1,12 @@
+bld.Program(
+  bld(
+    env=env,
+    name='kx022',
+    source=[
+      'kx022.c',
+    ],
+    includes=[
+      bld.src_dir,
+    ],
+  )
+)

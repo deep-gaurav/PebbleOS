@@ -137,12 +137,12 @@ static const I2CBus I2C_IIC2_BUS = {
     .scl_gpio =
         {
             .gpio = NRF5_GPIO_RESOURCE_EXISTS,
-            .gpio_pin = NRF_GPIO_PIN_MAP(0, 25),
+            .gpio_pin = NRF_GPIO_PIN_MAP(1, 5),
         },
     .sda_gpio =
         {
             .gpio = NRF5_GPIO_RESOURCE_EXISTS,
-            .gpio_pin = NRF_GPIO_PIN_MAP(0, 11),
+            .gpio_pin = NRF_GPIO_PIN_MAP(1, 6),
         },
     .stop_mode_inhibitor = InhibitorI2C2,
     .name = "I2C_IIC2",
@@ -184,12 +184,12 @@ static const I2CSlavePort I2C_SLAVE_BMP390 = {
 
 I2CSlavePort *const I2C_BMP390 = &I2C_SLAVE_BMP390;
 
-static const I2CSlavePort I2C_SLAVE_LSM6D = {
+static const I2CSlavePort I2C_SLAVE_KX022 = {
     .bus = &I2C_IIC2_BUS,
-    .address = 0x6A << 1,
+    .address = 0x1E << 1,
 };
 
-I2CSlavePort *const I2C_LSM6D = &I2C_SLAVE_LSM6D;
+I2CSlavePort *const I2C_LSM6D = &I2C_SLAVE_KX022;
 
 IRQ_MAP_NRFX(I2S, nrfx_i2s_0_irq_handler);
 
@@ -439,6 +439,8 @@ void board_init(void) {
   exti_configure_pin(BOARD_CONFIG_TOUCH_EXTI, ExtiTrigger_Falling, touch_interrupt_handler);
   exti_enable(BOARD_CONFIG_TOUCH_EXTI);
   PBL_LOG_INFO("Touch IRQ enabled");
+
+  i2c_init(&I2C_IIC2_BUS);
 }
 
 void touch_sensor_set_enabled(bool enabled) {
