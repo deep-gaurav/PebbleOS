@@ -21,7 +21,6 @@
 #define TAP_DELTA_THRESHOLD_MG    1500
 #define TAP_COOLDOWN_TICKS        8
 
-static KX022State s_kx022_state;
 static const KX022Config *s_kx022_config;
 static PebbleMutex *s_kx022_mutex;
 static uint32_t s_kx022_timer_id;
@@ -91,12 +90,12 @@ static void prv_read_sample(AccelDriverSample *sample) {
 
 static bool prv_needs_timer(void) {
   return (s_kx022_num_samples > 0 ||
-          s_kx022_state.double_tap_enabled);
+          s_kx022_config->state->double_tap_enabled);
 }
 
 static uint32_t prv_get_timer_interval_ms(void) {
   if (s_kx022_num_samples > 0) {
-    return s_kx022_state.sampling_interval_us / 1000;
+    return s_kx022_config->state->sampling_interval_us / 1000;
   }
   return MIN_ODR_INTERVAL_US / 1000;
 }
@@ -131,21 +130,21 @@ static void prv_timer_callback(void *data) {
   
   if (s_tap_cooldown > 0) s_tap_cooldown--;
   
-  bool need_sample = (s_kx022_state.powered_up &&
+  bool need_sample = (s_kx022_config->state->powered_up &&
                       (s_kx022_num_samples > 0 ||
-                       s_kx022_state.double_tap_enabled));
+                       s_kx022_config->state->double_tap_enabled));
 
   if (need_sample) {
     AccelDriverSample sample;
     prv_read_sample(&sample);
-    s_kx022_state.last_sample = sample;
-    s_kx022_state.last_sample_valid = true;
+    s_kx022_config->state->last_sample = sample;
+    s_kx022_config->state->last_sample_valid = true;
     
     if (s_kx022_num_samples > 0) {
       accel_cb_new_sample(&sample);
     }
     
-    if (s_prev_sample_valid && s_kx022_state.double_tap_enabled) {
+    if (s_prev_sample_valid && s_kx022_config->state->double_tap_enabled) {
       uint32_t delta = prv_compute_sample_delta(&sample, &s_prev_sample);
       
       if (delta >= TAP_DELTA_THRESHOLD_MG && s_tap_cooldown == 0) {
@@ -160,7 +159,7 @@ static void prv_timer_callback(void *data) {
     s_prev_sample_valid = true;
   }
   
-  if (s_kx022_state.double_tap_enabled) {
+  if (s_kx022_config->state->double_tap_enabled) {
     uint8_t ins1 = prv_read_register(KX022_INS1);
     
     if ((ins1 & KX022_INS1_TDS) && s_tap_cooldown == 0) {
@@ -177,10 +176,10 @@ static void prv_timer_callback(void *data) {
     uint8_t cntl1 = prv_read_register(KX022_CNTL1);
     PBL_LOG_DBG("KX022: tick=%u CNTL1=0x%02X tap=%d samples=%u interval=%luus peek_valid=%d",
                 (unsigned)s_timer_tick_count, cntl1,
-                s_kx022_state.double_tap_enabled,
+                s_kx022_config->state->double_tap_enabled,
                 (unsigned)s_kx022_num_samples,
-                (unsigned long)s_kx022_state.sampling_interval_us,
-                s_kx022_state.last_sample_valid);
+                (unsigned long)s_kx022_config->state->sampling_interval_us,
+                s_kx022_config->state->last_sample_valid);
   }
   
   mutex_unlock(s_kx022_mutex);
@@ -188,7 +187,7 @@ static void prv_timer_callback(void *data) {
 
 void kx022_init(const KX022Config *config) {
   s_kx022_config = config;
-  s_kx022_state = (KX022State){
+  *s_kx022_config->state = (KX022State){
     .config = config,
     .initialized = false,
     .powered_up = false,
@@ -218,7 +217,7 @@ void kx022_init(const KX022Config *config) {
   prv_write_register(KX022_CNTL3, 0x98);
   
   prv_write_register(KX022_ODCNTL, KX022_ODCNTL_OSA_12P5);
-  s_kx022_state.sampling_interval_us = 80000;
+  s_kx022_config->state->sampling_interval_us = 80000;
 
   prv_write_register(KX022_INC1, 0x00);
   prv_write_register(KX022_INC2, 0x00);
@@ -250,10 +249,10 @@ void kx022_init(const KX022Config *config) {
   cntl1 |= KX022_CNTL1_PC1;
   prv_write_register(KX022_CNTL1, cntl1);
 
-  s_kx022_state.initialized = true;
-  s_kx022_state.powered_up = true;
-  s_kx022_state.shake_detection_enabled = false;
-  s_kx022_state.double_tap_enabled = true;
+  s_kx022_config->state->initialized = true;
+  s_kx022_config->state->powered_up = true;
+  s_kx022_config->state->shake_detection_enabled = false;
+  s_kx022_config->state->double_tap_enabled = true;
   
   prv_update_timer();
 
@@ -267,7 +266,7 @@ void kx022_power_down(void) {
 }
 
 uint32_t kx022_set_sampling_interval(uint32_t interval_us) {
-  if (!s_kx022_state.initialized) {
+  if (!s_kx022_config->state->initialized) {
     return 0;
   }
   
@@ -288,7 +287,7 @@ uint32_t kx022_set_sampling_interval(uint32_t interval_us) {
     actual_interval_us = 10000;
   }
   
-  s_kx022_state.sampling_interval_us = actual_interval_us;
+  s_kx022_config->state->sampling_interval_us = actual_interval_us;
   
   prv_update_timer();
   
@@ -298,22 +297,22 @@ uint32_t kx022_set_sampling_interval(uint32_t interval_us) {
 }
 
 int kx022_peek(AccelDriverSample *data) {
-  if (!s_kx022_state.initialized) {
+  if (!s_kx022_config->state->initialized) {
     return -1;
   }
   
   mutex_lock(s_kx022_mutex);
   
-  if (s_kx022_state.last_sample_valid) {
-    *data = s_kx022_state.last_sample;
+  if (s_kx022_config->state->last_sample_valid) {
+    *data = s_kx022_config->state->last_sample;
     mutex_unlock(s_kx022_mutex);
     return 0;
   }
   
-  if (s_kx022_state.powered_up) {
+  if (s_kx022_config->state->powered_up) {
     prv_read_sample(data);
-    s_kx022_state.last_sample = *data;
-    s_kx022_state.last_sample_valid = true;
+    s_kx022_config->state->last_sample = *data;
+    s_kx022_config->state->last_sample_valid = true;
     mutex_unlock(s_kx022_mutex);
     return 0;
   }
@@ -323,7 +322,7 @@ int kx022_peek(AccelDriverSample *data) {
 }
 
 void kx022_set_num_samples(uint32_t num_samples) {
-  if (!s_kx022_state.initialized) {
+  if (!s_kx022_config->state->initialized) {
     return;
   }
   
@@ -337,9 +336,9 @@ void kx022_set_num_samples(uint32_t num_samples) {
 }
 
 void kx022_enable_shake_detection(bool on) {
-  s_kx022_state.shake_detection_enabled = on;
+  s_kx022_config->state->shake_detection_enabled = on;
 
-  if (!s_kx022_state.initialized) {
+  if (!s_kx022_config->state->initialized) {
     return;
   }
 
@@ -351,9 +350,9 @@ void kx022_enable_shake_detection(bool on) {
 }
 
 void kx022_enable_double_tap_detection(bool on) {
-  s_kx022_state.double_tap_enabled = on;
+  s_kx022_config->state->double_tap_enabled = on;
   
-  if (!s_kx022_state.initialized) {
+  if (!s_kx022_config->state->initialized) {
     return;
   }
   

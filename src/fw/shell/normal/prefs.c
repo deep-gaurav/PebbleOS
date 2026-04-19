@@ -757,6 +757,15 @@ void shell_prefs_init(void) {
     }
   }
 
+#if BOARD_BANGLEJS2
+  // Enable activity tracking by default on banglejs2 for first-boot experience.
+  // If the user explicitly disables it later, the stored pref will override this.
+  if (!settings_file_exists(&file, PREF_KEY_ACTIVITY_PREFERENCES,
+                            strlen(PREF_KEY_ACTIVITY_PREFERENCES) + 1)) {
+    s_activity_preferences.tracking_enabled = true;
+  }
+#endif
+
   settings_file_close(&file);
   
   // Update the ambient light driver with the loaded threshold value
