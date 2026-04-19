@@ -63,7 +63,7 @@ typedef struct PACKED ActivityHRMSettings {
 #define ACTIVITY_DEFAULT_AGE_YEARS                30
 
 #define ACTIVITY_DEFAULT_PREFERENCES { \
-  .tracking_enabled = false, \
+  .tracking_enabled = true, \
   .activity_insights_enabled = false, \
   .sleep_insights_enabled = false, \
   .age_years = ACTIVITY_DEFAULT_AGE_YEARS, \

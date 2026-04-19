@@ -756,6 +756,8 @@ static void prv_start_tracking_cb(void *context) {
       s_activity_state.accel_session = accel_session_create();
       accel_session_raw_data_subscribe(s_activity_state.accel_session, sampling_rate,
                                        ACTIVITY_ALGORITHM_MAX_SAMPLES, prv_accel_cb);
+      PBL_LOG_DBG("Activity: subscribed at %d Hz, %u samples/update",
+                  sampling_rate, ACTIVITY_ALGORITHM_MAX_SAMPLES);
 
       // Subscribe to get heart rate updates and create our measurement logging
       // session if an hrm is present

@@ -42,7 +42,7 @@ uint32_t accel_set_sampling_interval(uint32_t interval_us) {
 }
 
 uint32_t accel_get_sampling_interval(void) {
-  return s_kx022_config.sampling_interval_us;
+  return s_kx022_state_storage.sampling_interval_us;
 }
 
 void accel_set_num_samples(uint32_t num_samples) {

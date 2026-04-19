@@ -79,7 +79,7 @@ static void prv_read_sample(AccelDriverSample *sample) {
   time_t time_s;
   uint16_t time_ms;
   rtc_get_time_ms(&time_s, &time_ms);
-  uint64_t timestamp_us = ((uint64_t)time_s) * 1000 + time_ms;
+  uint64_t timestamp_us = ((uint64_t)time_s) * 1000000 + ((uint64_t)time_ms) * 1000;
   
   *sample = (AccelDriverSample){
     .x = (int16_t)x_mg,
@@ -142,9 +142,7 @@ static void prv_timer_callback(void *data) {
     s_kx022_state.last_sample_valid = true;
     
     if (s_kx022_num_samples > 0) {
-      for (uint32_t i = 0; i < s_kx022_num_samples; i++) {
-        accel_cb_new_sample(&sample);
-      }
+      accel_cb_new_sample(&sample);
     }
     
     if (s_prev_sample_valid && s_kx022_state.double_tap_enabled) {
@@ -175,12 +173,14 @@ static void prv_timer_callback(void *data) {
     prv_read_register(KX022_INT_REL);
   }
   
-  if (s_timer_tick_count % 128 == 1) {
+  if (s_timer_tick_count % 64 == 1) {
     uint8_t cntl1 = prv_read_register(KX022_CNTL1);
-    PBL_LOG_DBG("KX022: tick=%u CNTL1=0x%02X tap=%d samples=%u",
+    PBL_LOG_DBG("KX022: tick=%u CNTL1=0x%02X tap=%d samples=%u interval=%luus peek_valid=%d",
                 (unsigned)s_timer_tick_count, cntl1,
                 s_kx022_state.double_tap_enabled,
-                (unsigned)s_kx022_num_samples);
+                (unsigned)s_kx022_num_samples,
+                (unsigned long)s_kx022_state.sampling_interval_us,
+                s_kx022_state.last_sample_valid);
   }
   
   mutex_unlock(s_kx022_mutex);

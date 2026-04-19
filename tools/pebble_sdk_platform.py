@@ -220,6 +220,7 @@ banglejs2_platform = {
         "PBL_RECT",
         "PBL_DISPLAY_WIDTH=176",
         "PBL_DISPLAY_HEIGHT=176",
+        "PBL_HEALTH",
     ],
     "BUILD_DIR": "banglejs2",
     "BUNDLE_BIN_DIR": "banglejs2",
