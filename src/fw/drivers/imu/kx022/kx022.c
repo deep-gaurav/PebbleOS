@@ -187,6 +187,7 @@ static void prv_timer_callback(void *data) {
 
 void kx022_init(const KX022Config *config) {
   s_kx022_config = config;
+  PBL_ASSERTN(s_kx022_config->state != NULL);
   *s_kx022_config->state = (KX022State){
     .config = config,
     .initialized = false,

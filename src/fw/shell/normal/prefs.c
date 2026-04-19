@@ -739,6 +739,12 @@ void shell_prefs_init(void) {
   }
   s_mutex = mutex_create();
 
+#if BOARD_BANGLEJS2
+  // Enable activity tracking by default on banglejs2.
+  // If a valid stored preference exists, the loop below will override this.
+  s_activity_preferences.tracking_enabled = true;
+#endif
+
   SettingsFile file = {{0}};
   if (settings_file_open(&file, SHELL_PREFS_FILE_NAME, SHELL_PREFS_FILE_LEN) != S_SUCCESS) {
     return;
@@ -756,15 +762,6 @@ void shell_prefs_init(void) {
       settings_file_get(&file, entry->key, key_len, entry->value, entry->value_len);
     }
   }
-
-#if BOARD_BANGLEJS2
-  // Enable activity tracking by default on banglejs2 for first-boot experience.
-  // If the user explicitly disables it later, the stored pref will override this.
-  if (!settings_file_exists(&file, PREF_KEY_ACTIVITY_PREFERENCES,
-                            strlen(PREF_KEY_ACTIVITY_PREFERENCES) + 1)) {
-    s_activity_preferences.tracking_enabled = true;
-  }
-#endif
 
   settings_file_close(&file);
   

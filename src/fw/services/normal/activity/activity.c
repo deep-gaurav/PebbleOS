@@ -739,6 +739,8 @@ static void prv_start_tracking_cb(void *context) {
   PBL_ASSERT_TASK(PebbleTask_KernelBackground);
   bool test_mode = (bool)context;
   activity_prefs_set_activated();
+  PBL_LOG_DBG("Activity: tracking_enabled=%d should_be_started=%d",
+              activity_prefs_tracking_is_enabled(), s_activity_state.should_be_started);
 
   s_activity_state.should_be_started = true;
   if (!prv_activity_allowed_to_be_enabled() || s_activity_state.started) {
