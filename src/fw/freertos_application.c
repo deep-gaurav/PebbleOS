@@ -166,14 +166,14 @@ extern void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime ) {
     } else {
       const RtcTicks stop_duration = MIN(xExpectedIdleTime - EARLY_WAKEUP_TICKS, MAX_STOP_TICKS);
 
-      PBL_LOG_INFO("Entering deep sleep (STOP mode), duration=%lu ticks", (unsigned long)stop_duration);
+      // PBL_LOG_INFO("Entering deep sleep (STOP mode), duration=%lu ticks", (unsigned long)stop_duration);
       // Go into stop mode until the wakeup_tick.
       s_last_ticks_commanded_in_stop = stop_duration;
 
       rtc_alarm_set(stop_duration);
       enter_stop_mode();
       RtcTicks ticks_elapsed = rtc_alarm_get_elapsed_ticks();
-      PBL_LOG_INFO("Exiting deep sleep, actual=%lu ticks", (unsigned long)ticks_elapsed);
+      // PBL_LOG_INFO("Exiting deep sleep, actual=%lu ticks", (unsigned long)ticks_elapsed);
 
       s_last_ticks_elapsed_in_stop = ticks_elapsed;
       

@@ -78,7 +78,7 @@ static const char* s_inhibitor_names[] = {
 
 #if MICRO_FAMILY_NRF5
 void enter_stop_mode(void) {
-  PBL_LOG_INFO("Entering STOP mode (deep sleep)");
+  // PBL_LOG_INFO("Entering STOP mode (deep sleep)");
 
   // Capture time for flash power down (before WFI measurement)
   uint32_t flash_down_start = NRF_RTC0->COUNTER;
@@ -163,8 +163,8 @@ void enter_stop_mode(void) {
     entry_overhead_us = (entry_ticks * 1000000) / 32768;
   }
 
-  PBL_LOG_INFO("Woke from WFI (stop=%lu us, wake_src=0x%"PRIx32")",
-               (unsigned long)stop_us, ispr0);
+  // PBL_LOG_INFO("Woke from WFI (stop=%lu us, wake_src=0x%"PRIx32")",
+  //              (unsigned long)stop_us, ispr0);
 
   // Save wake end time for gap calculation in next cycle
   s_last_wake_end_ticks = wake_end_ticks;

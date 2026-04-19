@@ -18,6 +18,8 @@
 
 #define KX022_INT_REL          0x11
 #define KX022_INS1             0x12
+#define KX022_INS1_WUFS        (1 << 7)
+#define KX022_INS1_TDS         (1 << 6)
 #define KX022_INS2             0x13
 #define KX022_INS3             0x14
 #define KX022_STATUS_REG       0x15
