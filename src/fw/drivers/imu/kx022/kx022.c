@@ -18,12 +18,8 @@
 
 #define MIN_ODR_INTERVAL_US 80000
 
-// Software shake/tap detection thresholds (in mg)
-// These are tuned for wrist-tap gestures on the BangleJS2
-#define SHAKE_DELTA_THRESHOLD_MG  300   // Delta between consecutive samples to detect a shake
-#define TAP_DELTA_THRESHOLD_MG    500   // Sharper delta for tap detection
-#define SHAKE_COOLDOWN_TICKS      5     // Minimum timer ticks between shake events (~400ms)
-#define TAP_COOLDOWN_TICKS        8     // Minimum timer ticks between tap events (~640ms)
+#define TAP_DELTA_THRESHOLD_MG    1500
+#define TAP_COOLDOWN_TICKS        8
 
 static KX022State s_kx022_state;
 static const KX022Config *s_kx022_config;
@@ -31,10 +27,9 @@ static PebbleMutex *s_kx022_mutex;
 static uint32_t s_kx022_timer_id;
 static uint32_t s_kx022_num_samples;
 
-// Software-based shake/tap detection state
+// Software tap detection state
 static AccelDriverSample s_prev_sample;
 static bool s_prev_sample_valid = false;
-static uint32_t s_shake_cooldown = 0;
 static uint32_t s_tap_cooldown = 0;
 static uint32_t s_timer_tick_count = 0;
 
@@ -96,7 +91,6 @@ static void prv_read_sample(AccelDriverSample *sample) {
 
 static bool prv_needs_timer(void) {
   return (s_kx022_num_samples > 0 ||
-          s_kx022_state.shake_detection_enabled ||
           s_kx022_state.double_tap_enabled);
 }
 
@@ -109,9 +103,12 @@ static uint32_t prv_get_timer_interval_ms(void) {
 
 static void prv_update_timer(void) {
   if (prv_needs_timer()) {
-    new_timer_start(s_kx022_timer_id, prv_get_timer_interval_ms(),
+    uint32_t interval_ms = prv_get_timer_interval_ms();
+    PBL_LOG_DBG("KX022: starting timer interval=%lu ms", (unsigned long)interval_ms);
+    new_timer_start(s_kx022_timer_id, interval_ms,
                     prv_timer_callback, NULL, TIMER_START_FLAG_REPEATING);
   } else {
+    PBL_LOG_DBG("KX022: stopping timer (no subscribers)");
     new_timer_stop(s_kx022_timer_id);
   }
 }
@@ -132,52 +129,32 @@ static void prv_timer_callback(void *data) {
   
   s_timer_tick_count++;
   
-  // Decrement cooldown counters
-  if (s_shake_cooldown > 0) s_shake_cooldown--;
   if (s_tap_cooldown > 0) s_tap_cooldown--;
   
-  // Always read a sample when shake/tap detection is active or when data is needed
   bool need_sample = (s_kx022_state.powered_up &&
                       (s_kx022_num_samples > 0 ||
-                       s_kx022_state.shake_detection_enabled ||
                        s_kx022_state.double_tap_enabled));
-  
+
   if (need_sample) {
     AccelDriverSample sample;
     prv_read_sample(&sample);
     s_kx022_state.last_sample = sample;
     s_kx022_state.last_sample_valid = true;
     
-    // Deliver data samples to accel_manager
     if (s_kx022_num_samples > 0) {
       for (uint32_t i = 0; i < s_kx022_num_samples; i++) {
         accel_cb_new_sample(&sample);
       }
     }
     
-    // Software-based shake/tap detection using delta between consecutive samples
-    if (s_prev_sample_valid &&
-        (s_kx022_state.shake_detection_enabled || s_kx022_state.double_tap_enabled)) {
+    if (s_prev_sample_valid && s_kx022_state.double_tap_enabled) {
       uint32_t delta = prv_compute_sample_delta(&sample, &s_prev_sample);
       
-      // Tap detection: sharp impulse
       if (delta >= TAP_DELTA_THRESHOLD_MG && s_tap_cooldown == 0) {
-        PBL_LOG_DBG("KX022: SW tap detected (delta=%u mg)", (unsigned)delta);
+        PBL_LOG_DBG("KX022: SW tap detected (delta=%u mg, tick=%u)", (unsigned)delta, (unsigned)s_timer_tick_count);
         s_tap_cooldown = TAP_COOLDOWN_TICKS;
-        
-        if (s_kx022_state.double_tap_enabled) {
-          accel_cb_double_tap_detected(AXIS_Z, 0);
-        }
-        // Also fire shake event for backlight/wake
+        accel_cb_double_tap_detected(AXIS_Z, 0);
         accel_cb_shake_detected(AXIS_Z, 0);
-        s_shake_cooldown = SHAKE_COOLDOWN_TICKS;
-      }
-      // Shake detection: moderate movement
-      else if (delta >= SHAKE_DELTA_THRESHOLD_MG && s_shake_cooldown == 0 &&
-               s_kx022_state.shake_detection_enabled) {
-        PBL_LOG_DBG("KX022: SW shake detected (delta=%u mg)", (unsigned)delta);
-        accel_cb_shake_detected(AXIS_Z, 0);
-        s_shake_cooldown = SHAKE_COOLDOWN_TICKS;
       }
     }
     
@@ -185,36 +162,23 @@ static void prv_timer_callback(void *data) {
     s_prev_sample_valid = true;
   }
   
-  // Also check hardware detection (KX022 INS1) as a fallback
-  if (s_kx022_state.shake_detection_enabled || s_kx022_state.double_tap_enabled) {
+  if (s_kx022_state.double_tap_enabled) {
     uint8_t ins1 = prv_read_register(KX022_INS1);
     
-    if ((ins1 & KX022_INS1_WUFS) && s_kx022_state.shake_detection_enabled &&
-        s_shake_cooldown == 0) {
-      PBL_LOG_DBG("KX022: HW shake detected (INS1=0x%02X)", ins1);
-      accel_cb_shake_detected(AXIS_Z, 0);
-      s_shake_cooldown = SHAKE_COOLDOWN_TICKS;
-    }
-    
     if ((ins1 & KX022_INS1_TDS) && s_tap_cooldown == 0) {
-      PBL_LOG_DBG("KX022: HW tap detected (INS1=0x%02X)", ins1);
-      if (s_kx022_state.double_tap_enabled) {
-        accel_cb_double_tap_detected(AXIS_Z, 0);
-      }
-      accel_cb_shake_detected(AXIS_Z, 0);
-      s_shake_cooldown = SHAKE_COOLDOWN_TICKS;
+      PBL_LOG_DBG("KX022: HW tap detected (INS1=0x%02X, tick=%u)", ins1, (unsigned)s_timer_tick_count);
       s_tap_cooldown = TAP_COOLDOWN_TICKS;
+      accel_cb_double_tap_detected(AXIS_Z, 0);
+      accel_cb_shake_detected(AXIS_Z, 0);
     }
     
     prv_read_register(KX022_INT_REL);
   }
   
-  // Periodic diagnostic log (every ~10 seconds)
   if (s_timer_tick_count % 128 == 1) {
     uint8_t cntl1 = prv_read_register(KX022_CNTL1);
-    PBL_LOG_DBG("KX022: timer alive tick=%u CNTL1=0x%02X shake=%d tap=%d samples=%u",
+    PBL_LOG_DBG("KX022: tick=%u CNTL1=0x%02X tap=%d samples=%u",
                 (unsigned)s_timer_tick_count, cntl1,
-                s_kx022_state.shake_detection_enabled,
                 s_kx022_state.double_tap_enabled,
                 (unsigned)s_kx022_num_samples);
   }
@@ -263,19 +227,15 @@ void kx022_init(const KX022Config *config) {
   prv_write_register(KX022_INC5, 0x00);
   prv_write_register(KX022_INC6, 0x00);
 
-  prv_write_register(KX022_WUFC, 0x03);
-  // Enable both single and double tap detection in TDTRC
   prv_write_register(KX022_TDTRC, KX022_TDTRC_NTD | KX022_TDTRC_PTD |
                                    KX022_TDTRC_NSD | KX022_TDTRC_PSD);
   prv_write_register(KX022_TDTC, 0x78);
   prv_write_register(KX022_TTH, 0xCB);
   prv_write_register(KX022_TTL, 0x25);
-  prv_write_register(KX022_WUFTH, 0x01);
   prv_write_register(KX022_LP_CNTL, KX022_LP_CNTL_AVER_4X);
   prv_write_register(KX022_BUF_CLEAR, 0x00);
 
-  // Enable wake-up (shake) AND tap detection engines
-  uint8_t cntl1 = KX022_CNTL1_RES | KX022_CNTL1_DRDYE | KX022_CNTL1_WUFE | KX022_CNTL1_TDTE;
+  uint8_t cntl1 = KX022_CNTL1_RES | KX022_CNTL1_DRDYE | KX022_CNTL1_TDTE;
   
   if (config->scale_mg <= 2000) {
     cntl1 |= KX022_CNTL1_GSEL_2G;
@@ -292,9 +252,11 @@ void kx022_init(const KX022Config *config) {
 
   s_kx022_state.initialized = true;
   s_kx022_state.powered_up = true;
-  s_kx022_state.shake_detection_enabled = true;
+  s_kx022_state.shake_detection_enabled = false;
   s_kx022_state.double_tap_enabled = true;
   
+  prv_update_timer();
+
   PBL_LOG_INFO("KX022: Initialization complete (CNTL1=0x%02X)\n", cntl1);
 }
 
@@ -376,29 +338,16 @@ void kx022_set_num_samples(uint32_t num_samples) {
 
 void kx022_enable_shake_detection(bool on) {
   s_kx022_state.shake_detection_enabled = on;
-  
+
   if (!s_kx022_state.initialized) {
     return;
   }
-  
+
   mutex_lock(s_kx022_mutex);
-  
-  // KX022 requires standby mode (PC1=0) before modifying CNTL1 config bits
-  uint8_t cntl1 = prv_read_register(KX022_CNTL1);
-  prv_write_register(KX022_CNTL1, cntl1 & ~KX022_CNTL1_PC1);  // Enter standby
-  
-  if (on) {
-    cntl1 |= KX022_CNTL1_WUFE;
-  } else {
-    cntl1 &= ~KX022_CNTL1_WUFE;
-  }
-  prv_write_register(KX022_CNTL1, cntl1);  // Write config + re-enable PC1
-  
   prv_update_timer();
-  
   mutex_unlock(s_kx022_mutex);
-  
-  PBL_LOG_INFO("KX022: Shake detection %s (CNTL1=0x%02X)\n", on ? "enabled" : "disabled", cntl1);
+
+  PBL_LOG_INFO("KX022: Shake detection %s (no HW, tap-only driver)\n", on ? "enabled" : "disabled");
 }
 
 void kx022_enable_double_tap_detection(bool on) {
