@@ -153,6 +153,8 @@ def get_hrm(ctx):
         return "AS7000"
     elif is_obelix(ctx):
         return "GH3X2X"
+    elif is_banglejs2(ctx):
+        return "VC31"
     else:
         return None
 

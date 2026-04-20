@@ -175,6 +175,7 @@ board_capability_dicts = [
     {
         "boards": ["banglejs2"],
         "capabilities": {
+            "HAS_BUILTIN_HRM",
             "HAS_SPRF_V3",
             "HAS_TIMELINE_PEEK",
             "HAS_PUTBYTES_PREACKING",

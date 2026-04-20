@@ -84,6 +84,7 @@ elif bld.is_asterix() or bld.is_banglejs2():
             'driver_display',
             'driver_flash',
             'driver_gpio_defaults',
+            'driver_hrm',
             'driver_accel',
             'driver_mag',
             'driver_mcu',
@@ -1730,6 +1731,25 @@ elif bld.get_hrm() == 'GH3X2X':
             'hrm/gh3x2x/gh3x2x.c',
         ],
         use=includes
+    )
+elif bld.get_hrm() == 'VC31':
+    # Precompiled VC31 binary blob objects
+    vc31_binary_objs = (bld.path.ant_glob('hrm/vc31_binary/modle5_*.o') +
+                        [bld.path.find_node('hrm/vc31_binary/algo.o')])
+    bld.objects(
+        name='driver_hrm',
+        source=[
+            'hrm/vc31/vc31.c',
+            'hrm/vc31_binary/vc31_algo_adapter.c',
+        ] + vc31_binary_objs,
+        use=[
+            'driver_exti',
+            'driver_gpio',
+            'driver_i2c',
+            'fw_includes',
+            'pbl_includes',
+            'hal_nordic',
+        ],
     )
 elif bld.get_hrm() == 'STUB':
     bld.objects(

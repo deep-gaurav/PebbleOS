@@ -16,6 +16,7 @@
 #include "drivers/qspi_definitions.h"
 #include "drivers/button_id.h"
 #include "drivers/exti.h"
+#include "drivers/hrm/vc31/vc31.h"
 #include "drivers/rtc.h"
 #include "flash_region/flash_region.h"
 #include "kernel/events.h"
@@ -216,6 +217,22 @@ PwmState BACKLIGHT_PWM_STATE;
 PwmState VIBE_PWM_STATE;
 IRQ_MAP_NRFX(PWM0, nrfx_pwm_0_irq_handler);
 IRQ_MAP_NRFX(PWM1, nrfx_pwm_1_irq_handler);
+
+/* HRM Device (VC31/VC31B) */
+static HRMDeviceState s_hrm_state;
+static HRMDevice HRM_DEVICE = {
+  .state = &s_hrm_state,
+  .en_gpio = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 21), true },
+  .int_input = { NRF5_GPIO_RESOURCE_EXISTS, NRF_GPIO_PIN_MAP(0, 22) },
+  .int_exti = {
+    .peripheral = NRFX_GPIOTE_INSTANCE(0),
+    .channel = 3,
+    .gpio_pin = NRF_GPIO_PIN_MAP(0, 22),
+  },
+  .sda_pin = NRF_GPIO_PIN_MAP(0, 24),
+  .scl_pin = NRF_GPIO_PIN_MAP(1, 0),
+};
+HRMDevice * const HRM = &HRM_DEVICE;
 
 IRQ_MAP_NRFX(RTC1, rtc_irq_handler);
 

@@ -268,6 +268,12 @@ extern void command_btle_unmod_tx_stop(void);
 extern void command_hrm_read(void);
 extern void command_hrm_wipe(void);
 extern void command_hrm_freeze(void);
+#if PLATFORM_BANGLEJS2
+extern void command_hrm_vc31_probe(void);
+extern void command_hrm_vc31_enable(void);
+extern void command_hrm_vc31_disable(void);
+extern void command_hrm_vc31_status(void);
+#endif
 #endif
 
 #if MFG_INFO_RECORDS_TEST_RESULTS
@@ -439,6 +445,12 @@ static const Command s_prompt_commands[] = {
   { "hrm wipe", command_hrm_wipe, 0},
   { "hrm freeze", command_hrm_freeze, 0},
 #endif // PLATFORM_SILK
+#if PLATFORM_BANGLEJS2
+  { "hrm probe", command_hrm_vc31_probe, 0},
+  { "hrm enable", command_hrm_vc31_enable, 0},
+  { "hrm disable", command_hrm_vc31_disable, 0},
+  { "hrm status", command_hrm_vc31_status, 0},
+#endif
 #endif
 
 #if CAPABILITY_HAS_PMIC

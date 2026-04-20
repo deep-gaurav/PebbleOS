@@ -75,6 +75,10 @@ void mfg_info_set_disp_offsets(GPoint p) {
   // Not implemented.
 }
 
+bool mfg_info_is_hrm_present(void) {
+  return true;
+}
+
 void mfg_info_update_constant_data(void) {
   // Not implemented
 }
